@@ -70,6 +70,7 @@ Important flags:
 | `--branch` | `-b` | No | Git branch, default `main`. |
 | `--interval` | `-i` | No | Polling interval, default `5m`. |
 | `--sync-policy` | | No | `auto` or `manual`, default `auto`. |
+| `--prune` | | No | Delete resources owned by this app (labelled `gitopsctl.io/app`) that were removed from Git. Off by default; protected kinds (Namespace, CRD, PV, PVC) are never deleted and a sync that would delete more than 10 resources is refused. |
 | `--webhook-url` | | No | Per-app notification webhook. |
 | `--webhook-secret` | | No | Per-app webhook signing secret. |
 | `--dry-run` | | No | Preview without saving. |
@@ -98,6 +99,16 @@ Requests immediate reconciliation through the running API server.
 ```bash
 gitopsctl --api-url http://127.0.0.1:8080 sync-app --name nginx-demo
 ```
+
+### `diff-app`
+
+Shows what a sync would create, update or prune without applying anything. Requires a running controller; needs the `sync` scope when API tokens are scoped.
+
+```bash
+gitopsctl diff-app --name nginx-demo
+```
+
+Prune candidates appear only for applications registered with `--prune`.
 
 ### `approve-app`
 
