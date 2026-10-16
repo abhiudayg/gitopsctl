@@ -56,7 +56,7 @@ kubectl --kubeconfig /path/from/config auth can-i get namespaces
 
 Fix:
 
-- Make `kubeconfigPath` absolute.
+- Make `kubeconfig_path` absolute.
 - If running in Docker, use the container path, not the host path.
 - Confirm the API server is reachable from the GitOpsCTL runtime.
 - Confirm the kubeconfig user or service account has required RBAC.
@@ -69,17 +69,17 @@ Symptoms:
 
 Fix:
 
-- Add the manifest namespace to the cluster `allowedNamespaces`.
+- Add the manifest namespace to the cluster `allowed_namespaces`.
 - Or change the manifest namespace.
-- Or remove `allowedNamespaces` for unrestricted operation.
+- Or remove `allowed_namespaces` for unrestricted operation.
 
 Example:
 
 ```json
 {
   "name": "local-dev",
-  "kubeconfigPath": "/Users/you/.kube/config",
-  "allowedNamespaces": ["demo", "default"]
+  "kubeconfig_path": "/Users/you/.kube/config",
+  "allowed_namespaces": ["demo", "default"]
 }
 ```
 

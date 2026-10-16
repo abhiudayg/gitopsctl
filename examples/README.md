@@ -8,7 +8,7 @@ This directory contains a runnable nginx demo for GitOpsCTL.
 examples/
   configs/
     apps.json         Sample application config. Copy to configs/applications.json.
-    clusters.json     Sample cluster config. Copy to configs/clusters.json and edit kubeconfigPath.
+    clusters.json     Sample cluster config. Copy to configs/clusters.json and edit kubeconfig_path.
   manifests/
     namespace.yaml
     nginx-deployment.yaml
@@ -26,8 +26,8 @@ cp examples/configs/clusters.json configs/clusters.json
 
 Edit `configs/clusters.json`:
 
-- Set `kubeconfigPath` to your real kubeconfig path.
-- Keep `allowedNamespaces` as `["demo"]` unless you change the manifests.
+- Set `kubeconfig_path` to your real kubeconfig path.
+- Keep `allowed_namespaces` as `["demo"]` unless you change the manifests.
 
 Start GitOpsCTL:
 

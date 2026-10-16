@@ -121,7 +121,7 @@ cp examples/configs/apps.json configs/applications.json
 cp examples/configs/clusters.json configs/clusters.json
 ```
 
-Edit `configs/clusters.json` and set `kubeconfigPath` to the absolute path of your kubeconfig.
+Edit `configs/clusters.json` and set `kubeconfig_path` to the absolute path of your kubeconfig.
 
 Then run:
 

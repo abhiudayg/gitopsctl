@@ -17,12 +17,12 @@ Applications are stored as a JSON array in `configs/applications.json`.
 [
   {
     "name": "nginx-demo",
-    "repoURL": "https://github.com/aeswibon/gitopsctl.git",
+    "repo_url": "https://github.com/aeswibon/gitopsctl.git",
     "branch": "main",
     "path": "examples/manifests",
-    "clusterName": "local-dev",
+    "cluster_name": "local-dev",
     "interval": "30s",
-    "syncPolicy": "auto",
+    "sync_policy": "auto",
     "status": "Pending",
     "message": "Registered, awaiting first sync"
   }
@@ -34,21 +34,22 @@ Applications are stored as a JSON array in `configs/applications.json`.
 | Field | Required | Written by | Description |
 |-------|----------|------------|-------------|
 | `name` | Yes | User | Unique application name. Use DNS-friendly names such as `frontend-prod`. |
-| `repoURL` | Yes | User | Git repository URL. HTTPS and SSH Git URLs are supported. |
+| `repo_url` | Yes | User | Git repository URL. HTTPS and SSH Git URLs are supported. |
 | `branch` | No | User | Branch to watch. Defaults to `main` when registering through the CLI. |
 | `path` | Yes | User | Directory inside the repo containing raw YAML, a Kustomize overlay, or a Helm chart. |
-| `clusterName` | Yes | User | Name of a cluster from `configs/clusters.json`. |
+| `cluster_name` | Yes | User | Name of a cluster from `configs/clusters.json`. |
 | `interval` | No | User | Polling interval such as `30s`, `5m`, or `1h`. CLI validation allows 10 seconds through 24 hours. |
-| `syncPolicy` | No | User | `auto` applies discovered commits. `manual` records the latest commit and waits for approval. |
-| `approvedGitHash` | No | User/API | Commit approved for a manual sync. Usually set through `gitopsctl approve-app`. |
-| `latestGitHash` | No | Controller | Latest commit hash discovered by the controller. |
-| `lastSyncedGitHash` | No | Controller | Last commit hash successfully applied. |
+| `sync_policy` | No | User | `auto` applies discovered commits. `manual` records the latest commit and waits for approval. |
+| `prune` | No | User | `true` deletes resources owned by this app that were removed from Git. Defaults to `false`. |
+| `approved_git_hash` | No | User/API | Commit approved for a manual sync. Usually set through `gitopsctl approve-app`. |
+| `latest_git_hash` | No | Controller | Latest commit hash discovered by the controller. |
+| `last_synced_git_hash` | No | Controller | Last commit hash successfully applied. |
 | `status` | No | Controller | Current app status such as `Pending`, `Synced`, `Healthy`, `Progressing`, `Degraded`, `OutOfSync`, `Error`, or `Stopped`. |
 | `message` | No | Controller | Human-readable status or error detail. |
-| `consecutiveFailures` | No | Controller | Count of consecutive sync failures. |
-| `webhookUrl` | No | User | Per-application sync notification webhook URL. |
-| `webhookSecret` | No | User | Optional HMAC signing secret for per-application webhook notifications. |
-| `appliedResources` | No | Controller | Kubernetes resources applied by the most recent sync, used for app health checks. |
+| `consecutive_failures` | No | Controller | Count of consecutive sync failures. |
+| `webhook_url` | No | User | Per-application sync notification webhook URL. |
+| `webhook_secret` | No | User | Optional HMAC signing secret for per-application webhook notifications. |
+| `applied_resources` | No | Controller | Kubernetes resources applied by the most recent sync, used for app health checks. |
 
 Use `interval`, not `pollingInterval`, in JSON. `pollingInterval` is an internal parsed duration and is not read from config.
 
@@ -60,11 +61,11 @@ Clusters are stored as a JSON array in `configs/clusters.json`.
 [
   {
     "name": "local-dev",
-    "kubeconfigPath": "/Users/you/.kube/config",
-    "registeredAt": "2026-05-10T10:00:00Z",
+    "kubeconfig_path": "/Users/you/.kube/config",
+    "registered_at": "2026-05-10T10:00:00Z",
     "status": "Pending",
     "message": "Cluster registered, awaiting validation",
-    "allowedNamespaces": ["demo"]
+    "allowed_namespaces": ["demo"]
   }
 ]
 ```
@@ -74,14 +75,14 @@ Clusters are stored as a JSON array in `configs/clusters.json`.
 | Field | Required | Written by | Description |
 |-------|----------|------------|-------------|
 | `name` | Yes | User | Unique cluster name referenced by applications. |
-| `kubeconfigPath` | Yes | User | Absolute path to the kubeconfig file used by the controller. |
-| `registeredAt` | No | CLI | Registration timestamp. |
+| `kubeconfig_path` | Yes | User | Absolute path to the kubeconfig file used by the controller. |
+| `registered_at` | No | CLI | Registration timestamp. |
 | `status` | No | Controller | Cluster status such as `Pending`, `Active`, `Unreachable`, or `Error`. |
 | `message` | No | Controller | Human-readable cluster status or error detail. |
-| `lastCheckedAt` | No | Controller | Last cluster health check timestamp. |
-| `allowedNamespaces` | No | User | Optional list of namespaces the controller may write to for this cluster. Empty means unrestricted. |
+| `last_checked_at` | No | Controller | Last cluster health check timestamp. |
+| `allowed_namespaces` | No | User | Optional list of namespaces the controller may write to for this cluster. Empty means unrestricted. |
 
-When `allowedNamespaces` is set, namespaced manifests outside the list are rejected before apply.
+When `allowed_namespaces` is set, namespaced manifests outside the list are rejected before apply.
 
 ## Registering Through the CLI
 
@@ -165,5 +166,5 @@ gitopsctl start \
 
 - Use absolute kubeconfig paths in committed or copied cluster configs.
 - Do not commit kubeconfigs, tokens, decrypted secrets, or webhook secrets.
-- Keep `allowedNamespaces` narrow for shared clusters.
+- Keep `allowed_namespaces` narrow for shared clusters.
 - Keep examples and documentation in sync with CLI command names and JSON field names.

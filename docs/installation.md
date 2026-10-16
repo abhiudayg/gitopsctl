@@ -80,7 +80,7 @@ docker run --rm -it \
 
 Notes:
 
-- `kubeconfigPath` inside `configs/clusters.json` must match the path inside the container, such as `/root/.kube/config`.
+- `kubeconfig_path` inside `configs/clusters.json` must match the path inside the container, such as `/root/.kube/config`.
 - Mount SOPS keys or cloud credentials when encrypted manifests need decryption.
 - Mount `configs/` as writable because GitOpsCTL persists status back to JSON files.
 
