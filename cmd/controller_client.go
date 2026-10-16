@@ -11,6 +11,10 @@ import (
 )
 
 func postAccepted(path string, payload any) (string, error) {
+	return postExpecting(path, payload, http.StatusAccepted)
+}
+
+func postExpecting(path string, payload any, wantStatus int) (string, error) {
 	var body io.Reader
 	if payload != nil {
 		data, err := json.Marshal(payload)
@@ -40,7 +44,7 @@ func postAccepted(path string, payload any) (string, error) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	text := strings.TrimSpace(string(respBody))
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != wantStatus {
 		return "", fmt.Errorf("unexpected status %s: %s", resp.Status, text)
 	}
 	return text, nil
