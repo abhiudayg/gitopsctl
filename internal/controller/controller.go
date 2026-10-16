@@ -69,6 +69,7 @@ type Controller struct {
 	wg                 sync.WaitGroup
 	emitter            events.Emitter
 	appConfigPath      string
+	stopOnce           sync.Once
 }
 
 type Option func(*Controller)
@@ -129,7 +130,7 @@ func (c *Controller) Start(appConfigFile string) error {
 	c.apps.RUnlock()
 
 	for _, application := range appsToStart {
-		c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: application.Name}
+		c.sendApp(AppCommand{Type: AppCommandStart, AppName: application.Name})
 	}
 
 	c.clusters.RLock()
@@ -137,7 +138,7 @@ func (c *Controller) Start(appConfigFile string) error {
 	c.clusters.RUnlock()
 
 	for _, cl := range clustersToCheck {
-		c.clusterCommandChan <- ClusterCommand{Type: ClusterCommandCheck, ClusterName: cl.Name}
+		c.sendCluster(ClusterCommand{Type: ClusterCommandCheck, ClusterName: cl.Name})
 	}
 
 	c.logger.Info("Initial reconciliation dispatched.")
@@ -149,13 +150,27 @@ func (c *Controller) Start(appConfigFile string) error {
 }
 
 func (c *Controller) Stop() {
-	c.emit(context.Background(), events.TypeControllerStopping, map[string]any{})
-	c.logger.Info("Stopping GitOps controller...")
-	c.cancel()
-	close(c.appCommandChan)
-	close(c.clusterCommandChan)
-	c.wg.Wait()
-	c.logger.Info("GitOps controller stopped.")
+	c.stopOnce.Do(func() {
+		c.emit(context.Background(), events.TypeControllerStopping, map[string]any{})
+		c.logger.Info("Stopping GitOps controller...")
+		c.cancel()
+		c.wg.Wait()
+		c.logger.Info("GitOps controller stopped.")
+	})
+}
+
+func (c *Controller) sendApp(cmd AppCommand) {
+	select {
+	case c.appCommandChan <- cmd:
+	case <-c.ctx.Done():
+	}
+}
+
+func (c *Controller) sendCluster(cmd ClusterCommand) {
+	select {
+	case c.clusterCommandChan <- cmd:
+	case <-c.ctx.Done():
+	}
 }
 
 func (c *Controller) configWatcher(filePath string) {
@@ -201,7 +216,7 @@ func (c *Controller) reloadApplications(filePath string) {
 		if !ok || existing.RepoURL != a.RepoURL || existing.Branch != a.Branch || existing.Path != a.Path || existing.ClusterName != a.ClusterName || existing.Interval != a.Interval {
 			c.logger.Info("Detected new or updated application configuration", zap.String("app", a.Name))
 			c.apps.Add(a)
-			c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: a.Name}
+			c.sendApp(AppCommand{Type: AppCommandStart, AppName: a.Name})
 		}
 	}
 
@@ -212,34 +227,34 @@ func (c *Controller) reloadApplications(filePath string) {
 	for name := range c.apps.Apps {
 		if !currentNames[name] {
 			c.logger.Info("Detected application removal", zap.String("app", name))
-			c.appCommandChan <- AppCommand{Type: AppCommandStop, AppName: name}
+			c.sendApp(AppCommand{Type: AppCommandStop, AppName: name})
 			delete(c.apps.Apps, name)
 		}
 	}
 }
 
 func (c *Controller) StartApp(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandStart, AppName: appName})
 }
 
 func (c *Controller) StopApp(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandStop, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandStop, AppName: appName})
 }
 
 func (c *Controller) TriggerSync(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandSync, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandSync, AppName: appName})
 }
 
 func (c *Controller) ApproveSync(appName string, commitHash string) {
-	c.appCommandChan <- AppCommand{
+	c.sendApp(AppCommand{
 		Type:    AppCommandApprove,
 		AppName: appName,
 		Data:    map[string]any{"commitHash": commitHash},
-	}
+	})
 }
 
 func (c *Controller) TriggerClusterHealthCheck(clusterName string) {
-	c.clusterCommandChan <- ClusterCommand{Type: ClusterCommandCheck, ClusterName: clusterName}
+	c.sendCluster(ClusterCommand{Type: ClusterCommandCheck, ClusterName: clusterName})
 }
 
 func (c *Controller) commandDispatcher(appConfigFile string) {
@@ -295,33 +310,36 @@ func (c *Controller) clusterHealthChecker() {
 
 func (c *Controller) performClusterHealthCheck(ctx context.Context, cl *cluster.Cluster) {
 	logger := c.logger.With(zap.String("cluster", cl.Name))
+	var status, message string
 	k8sClient, err := k8s.NewClientSet(logger, cl.KubeconfigPath, cl.AllowedNamespaces)
 	if err != nil {
-		cl.Status = "Error"
-		cl.Message = fmt.Sprintf("Failed to create K8s client: %v", err)
+		status = "Error"
+		message = fmt.Sprintf("Failed to create K8s client: %v", err)
 	} else {
 		checkCtx, checkCancel := context.WithTimeout(ctx, K8sConnectTimeout)
 		defer checkCancel()
 		if err := k8sClient.CheckConnectivity(checkCtx); err != nil {
-			cl.Status = "Unreachable"
-			cl.Message = fmt.Sprintf("Connectivity failed: %v", err)
+			status = "Unreachable"
+			message = fmt.Sprintf("Connectivity failed: %v", err)
 			metrics.ClusterStatus.WithLabelValues(cl.Name).Set(0)
 		} else {
-			cl.Status = "Active"
-			cl.Message = "Connectivity successful."
+			status = "Active"
+			message = "Connectivity successful."
 			metrics.ClusterStatus.WithLabelValues(cl.Name).Set(1)
 		}
 	}
-	cl.LastCheckedAt = time.Now()
 
 	c.clusters.Lock()
+	cl.Status = status
+	cl.Message = message
+	cl.LastCheckedAt = time.Now()
 	_ = cluster.SaveClusters(c.clusters, cluster.DefaultClusterConfigFile)
 	c.clusters.Unlock()
 
 	c.emit(ctx, events.TypeClusterHealthCompleted, map[string]any{
 		"cluster": cl.Name,
-		"status":  cl.Status,
-		"message": cl.Message,
+		"status":  status,
+		"message": message,
 	})
 }
 
@@ -404,7 +422,7 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 	defer c.wg.Done()
 	defer func() {
 		c.mu.Lock()
-		if rt, ok := c.runningApps[app.Name]; ok && &rt.cancel == &appCancel {
+		if rt, ok := c.runningApps[app.Name]; ok && rt.syncChan == syncChan {
 			delete(c.runningApps, app.Name)
 		}
 		c.mu.Unlock()
@@ -677,6 +695,8 @@ func (c *Controller) saveAppStatus(appToSave *app.Application, appConfigFile str
 	originalApp.Message = appToSave.Message
 	originalApp.LastSyncedGitHash = appToSave.LastSyncedGitHash
 	originalApp.ConsecutiveFailures = appToSave.ConsecutiveFailures
+	originalApp.LatestGitHash = appToSave.LatestGitHash
+	originalApp.AppliedResources = appToSave.AppliedResources
 
 	_ = app.SaveApplications(c.apps, appConfigFile)
 }

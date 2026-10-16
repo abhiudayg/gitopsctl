@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -194,13 +195,22 @@ func TestReconcileApp_ClusterMissing(t *testing.T) {
 		PollingInterval: time.Minute,
 	}
 
+	ctrl.apps.Add(a)
+	local := *a
+
 	ctrl.wg.Add(1)
-	go ctrl.reconcileApp(appCtx, a, appCfg, cancel, syncChan)
+	go ctrl.reconcileApp(appCtx, &local, appCfg, cancel, syncChan)
+
+	storedState := func() (string, string) {
+		ctrl.apps.RLock()
+		defer ctrl.apps.RUnlock()
+		return a.Status, a.Message
+	}
 
 	// Wait for the status to change or timeout
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if a.Status == "Error" {
+		if status, _ := storedState(); status == "Error" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -209,16 +219,19 @@ func TestReconcileApp_ClusterMissing(t *testing.T) {
 	cancel() // Stop the loop
 	ctrl.wg.Wait()
 
-	if a.Status != "Error" || !strings.Contains(a.Message, "does not exist") {
-		t.Fatalf("unexpected app state: status=%q msg=%q", a.Status, a.Message)
+	if status, msg := storedState(); status != "Error" || !strings.Contains(msg, "does not exist") {
+		t.Fatalf("unexpected app state: status=%q msg=%q", status, msg)
 	}
 }
 
 type recordingEmitter struct {
+	mu   sync.Mutex
 	last map[string]any
 }
 
 func (r *recordingEmitter) Emit(_ context.Context, _ events.Type, data map[string]any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.last = data
 }
 
