@@ -26,6 +26,9 @@ type PlanItem struct {
 // Resources in previous that are absent from the rendered manifests are reported as prune candidates.
 func (cs *ClientSet) Plan(ctx context.Context, manifestsDir, appName, clusterName string, previous []ResourceMetadata) ([]PlanItem, []error) {
 	docs, errs := cs.renderManifests(manifestsDir)
+	if violations := cs.checkPolicy(docs); len(violations) > 0 {
+		return nil, append(errs, violations...)
+	}
 
 	var items []PlanItem
 	var rendered []ResourceMetadata
