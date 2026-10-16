@@ -35,7 +35,12 @@ Flags:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--api-address`, `-a` | `:8080` | Listen address for REST API, SSE, and metrics. |
+| `--api-address`, `-a` | `:8080` | Listen address for REST API, SSE, and metrics. Without an API token the server binds to loopback only. |
+| `--api-token` | `$GITOPSCTL_API_TOKEN` | Admin bearer token required on `/api/v1`. `/health` and `/metrics` stay open. |
+| `--api-token-file` | empty | File with one `<scope> <token>` per line. `read` allows GET, `sync` adds `sync-app`/`approve-app`/`check-cluster`, `admin` allows everything. |
+| `--api-cors-origin` | none | Allowed browser origin (repeatable). CORS is off by default. |
+
+Mutating API calls emit an `io.gitopsctl.api.audit` event with a non-secret token id, method, path, and status. API-backed commands and the dashboard send `--api-token` (or `$GITOPSCTL_API_TOKEN`) automatically.
 
 ## Applications
 
@@ -65,6 +70,7 @@ Important flags:
 | `--branch` | `-b` | No | Git branch, default `main`. |
 | `--interval` | `-i` | No | Polling interval, default `5m`. |
 | `--sync-policy` | | No | `auto` or `manual`, default `auto`. |
+| `--prune` | | No | Delete resources owned by this app (labelled `gitopsctl.io/app`) that were removed from Git. Off by default; protected kinds (Namespace, CRD, PV, PVC) are never deleted and a sync that would delete more than 10 resources is refused. |
 | `--webhook-url` | | No | Per-app notification webhook. |
 | `--webhook-secret` | | No | Per-app webhook signing secret. |
 | `--dry-run` | | No | Preview without saving. |
@@ -93,6 +99,16 @@ Requests immediate reconciliation through the running API server.
 ```bash
 gitopsctl --api-url http://127.0.0.1:8080 sync-app --name nginx-demo
 ```
+
+### `diff-app`
+
+Shows what a sync would create, update or prune without applying anything. Requires a running controller; needs the `sync` scope when API tokens are scoped.
+
+```bash
+gitopsctl diff-app --name nginx-demo
+```
+
+Prune candidates appear only for applications registered with `--prune`.
 
 ### `approve-app`
 

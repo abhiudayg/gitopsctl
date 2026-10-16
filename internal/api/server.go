@@ -36,11 +36,28 @@ type Server struct {
 	stream *events.StreamSink
 	// history is an in-memory ring buffer for recent events.
 	history *events.HistorySink
+	// tokens maps accepted bearer tokens to their scope; empty disables authentication.
+	tokens map[string]Scope
+	// corsOrigins lists allowed browser origins; empty disables CORS.
+	corsOrigins []string
+}
+
+// ServerOption customises a Server.
+type ServerOption func(*Server)
+
+// WithAPITokens enables bearer-token authentication on /api/v1.
+func WithAPITokens(tokens map[string]Scope) ServerOption {
+	return func(s *Server) { s.tokens = tokens }
+}
+
+// WithCORSOrigins allows the given browser origins to call the API.
+func WithCORSOrigins(origins []string) ServerOption {
+	return func(s *Server) { s.corsOrigins = origins }
 }
 
 // NewServer creates a new API server instance.
 // It initializes the Echo instance, sets up middleware, and registers routes.
-func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *clustercore.Clusters, ctrl *controller.Controller, stream *events.StreamSink, history *events.HistorySink) *Server {
+func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *clustercore.Clusters, ctrl *controller.Controller, stream *events.StreamSink, history *events.HistorySink, opts ...ServerOption) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -58,7 +75,6 @@ func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *cluster
 		},
 	}))
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
 
 	s := &Server{
 		e:          e,
@@ -69,6 +85,12 @@ func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *cluster
 		stream:     stream,
 		history:    history,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	if len(s.corsOrigins) > 0 {
+		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: s.corsOrigins, AllowHeaders: []string{echo.HeaderAuthorization, echo.HeaderContentType}}))
+	}
 
 	s.registerRoutes()
 	return s
@@ -78,6 +100,9 @@ func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *cluster
 // It sets up the routes for managing applications, health checks, and other API functionalities.
 func (s *Server) registerRoutes() {
 	v1 := s.e.Group("/api/v1")
+	if len(s.tokens) > 0 {
+		v1.Use(authMiddleware(s.tokens, s.audit))
+	}
 
 	appHandler := app.NewHandler(s.logger, s.apps, s.clusters, s.controller)
 	clusterHandler := cluster.NewHandler(s.logger, s.clusters, s.apps, s.controller)
@@ -92,6 +117,12 @@ func (s *Server) registerRoutes() {
 	s.e.GET("/health", s.HealthCheck)
 	s.e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
+}
+
+func (s *Server) audit(typ events.Type, data map[string]any) {
+	if s.controller != nil {
+		s.controller.Emit(typ, data)
+	}
 }
 
 // Echo returns the Echo instance used by the server.

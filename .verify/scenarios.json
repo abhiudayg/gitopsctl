@@ -1,0 +1,941 @@
+{
+  "version": 1,
+  "description": "Success (S-) and failure (F-) scenarios that define what a correct gitopsctl looks like. Each scenario names the automated check that decides it. Weights: critical=5, high=3, medium=2, low=1.",
+  "severity_weights": {
+    "critical": 5,
+    "high": 3,
+    "medium": 2,
+    "low": 1
+  },
+  "verdict_rules": {
+    "PASS": "no failed critical or high scenario and score >= 95",
+    "CONDITIONAL": "no failed critical scenario and score >= 80",
+    "FAIL": "anything else"
+  },
+  "gates": [
+    {
+      "id": "G-BUILD",
+      "title": "Module builds",
+      "severity": "critical",
+      "command": "go build ./...",
+      "expect": "exit 0"
+    },
+    {
+      "id": "G-VET",
+      "title": "go vet is clean",
+      "severity": "high",
+      "command": "go vet ./...",
+      "expect": "exit 0"
+    },
+    {
+      "id": "G-FMT",
+      "title": "gofmt reports no files",
+      "severity": "medium",
+      "command": "test -z \"$(gofmt -l . | grep -v '^dist/')\"",
+      "expect": "no unformatted files"
+    },
+    {
+      "id": "G-LINT",
+      "title": "golangci-lint reports no issues",
+      "severity": "high",
+      "command": "golangci-lint run",
+      "expect": "exit 0",
+      "skip_if_missing": "golangci-lint"
+    },
+    {
+      "id": "G-UNIT",
+      "title": "Unit tests pass with the race detector",
+      "severity": "critical",
+      "command": "go test -race -count=1 -coverprofile=.verify/.work/cover.out ./...",
+      "expect": "exit 0, no data races"
+    },
+    {
+      "id": "G-COVER",
+      "title": "Total statement coverage is at least 80%",
+      "severity": "medium",
+      "command": "coverage",
+      "threshold": 80,
+      "expect": "total coverage >= threshold"
+    },
+    {
+      "id": "G-MOD",
+      "title": "go.mod and go.sum are tidy",
+      "severity": "medium",
+      "command": "go mod tidy -diff",
+      "expect": "exit 0"
+    },
+    {
+      "id": "G-VULN",
+      "title": "No known vulnerabilities in called code",
+      "severity": "high",
+      "command": "govulncheck ./...",
+      "expect": "exit 0",
+      "skip_if_missing": "govulncheck"
+    },
+    {
+      "id": "G-RELEASE",
+      "title": "GoReleaser configuration is valid",
+      "severity": "medium",
+      "command": "goreleaser check",
+      "expect": "exit 0",
+      "skip_if_missing": "goreleaser"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S-BUILD-01",
+      "kind": "success",
+      "area": "cli",
+      "severity": "high",
+      "title": "Binary builds and exposes the documented commands",
+      "given": "A clean checkout",
+      "when": "The binary is built and run with --help",
+      "then": "Exit 0; start, register-apps, register-cluster, sync-app, approve-app, diff-app, check-cluster, dashboard, list-apps and unregister are listed; start lists --api-token, --api-token-file, --api-cors-origin",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_BUILD_01_BinaryBuildsAndExposesCoreCommands"
+            ]
+          }
+        ]
+      },
+      "if_failing": "A command or flag was removed or renamed. Restore it or update docs and this scenario deliberately."
+    },
+    {
+      "id": "S-SYNC-01",
+      "kind": "success",
+      "area": "sync",
+      "severity": "critical",
+      "title": "Manifests from Git are applied with ownership labels",
+      "given": "A registered cluster and an auto-sync app pointing at a repo with one ConfigMap",
+      "when": "The controller starts",
+      "then": "The app reaches Synced/Healthy; the ConfigMap exists with the manifest data and labels app.kubernetes.io/managed-by=gitopsctl, gitopsctl.io/app, gitopsctl.io/cluster; last_synced_git_hash equals repo HEAD; consecutive_failures is 0",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_SYNC_01_ManifestsAreAppliedWithOwnershipLabels"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Check internal/core/k8s ApplyManifests/processYAMLData and internal/controller performSync."
+    },
+    {
+      "id": "S-SYNC-02",
+      "kind": "success",
+      "area": "sync",
+      "severity": "high",
+      "title": "An unchanged commit causes no further cluster writes",
+      "given": "A synced app",
+      "when": "Several poll intervals pass with no new commit",
+      "then": "The cluster receives zero additional create/update/delete requests",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_SYNC_02_UnchangedCommitCausesNoFurtherClusterWrites"
+            ]
+          }
+        ]
+      },
+      "if_failing": "performSync must return early when trigger is poll and the commit hash equals LastSyncedGitHash."
+    },
+    {
+      "id": "S-SYNC-03",
+      "kind": "success",
+      "area": "sync",
+      "severity": "high",
+      "title": "A new commit propagates to the cluster",
+      "given": "A synced app",
+      "when": "A commit changes a manifest",
+      "then": "The live object is updated and last_synced_git_hash equals the new HEAD",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_SYNC_03_NewCommitPropagatesToTheCluster"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Polling, git pull, or the update path regressed."
+    },
+    {
+      "id": "S-SYNC-04",
+      "kind": "success",
+      "area": "sync",
+      "severity": "critical",
+      "title": "Manual sync policy holds changes until approved, then applies them",
+      "given": "An app with sync_policy manual",
+      "when": "A commit exists, then approve-app is run for that commit",
+      "then": "Status is OutOfSync and nothing is applied before approval; after approval the app reaches Synced and the resource exists",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_SYNC_04_ManualPolicyHoldsChangesUntilApproved"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_PicksUpApprovalRecordedOnTheSharedApplication"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Approvals are stored on the shared application; the reconciler works on a copy and must refresh ApprovedGitHash in performSync."
+    },
+    {
+      "id": "S-PLAN-01",
+      "kind": "success",
+      "area": "plan",
+      "severity": "high",
+      "title": "diff-app reports create, update and unchanged without writing to the cluster",
+      "given": "A manual-policy app with pending changes",
+      "when": "diff-app runs before and after approval and after a new commit",
+      "then": "Output lists + create, ~ update, = unchanged with correct totals; the cluster receives zero mutating requests during diff-app",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_PLAN_01_DiffReportsChangesWithoutWritingToTheCluster"
+            ]
+          },
+          {
+            "package": "./internal/core/k8s",
+            "tests": [
+              "TestPlan",
+              "TestIsSubset"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPlanApp_ReturnsPlannerItemsAndCommit",
+              "TestPlanApp_PassesTrackedResourcesWhenPruneEnabled"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Plan must stay read-only (Get only) and compare desired as a subset of live."
+    },
+    {
+      "id": "S-PRUNE-01",
+      "kind": "success",
+      "area": "prune",
+      "severity": "critical",
+      "title": "Removed manifests are deleted when prune is enabled",
+      "given": "A prune-enabled app with resources keep and drop plus an unrelated object owned by another app",
+      "when": "drop.yaml is removed from Git",
+      "then": "drop is deleted; keep and the other app's object remain",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_PRUNE_01_RemovedManifestsAreDeletedWhenPruneIsEnabled"
+            ]
+          },
+          {
+            "package": "./internal/core/k8s",
+            "tests": [
+              "TestPrune"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_PruneEnabledPassesPreviousAndCurrent"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Check internal/core/k8s Prune and that saveAppStatus persists AppliedResources."
+    },
+    {
+      "id": "S-PRUNE-02",
+      "kind": "success",
+      "area": "prune",
+      "severity": "critical",
+      "title": "Removed manifests stay when prune is disabled (default)",
+      "given": "An app without prune",
+      "when": "A manifest is removed from Git",
+      "then": "The live resource is untouched",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_PRUNE_02_RemovedManifestsStayWhenPruneIsDisabled"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_PruneDisabledNeverPrunesAndTracksApplied"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Pruning must be strictly opt-in. Treat any default-on deletion as a release blocker."
+    },
+    {
+      "id": "S-API-01",
+      "kind": "success",
+      "area": "api",
+      "severity": "critical",
+      "title": "Health and metrics are reachable without a token",
+      "given": "Auth enabled",
+      "when": "GET /health and /metrics without credentials",
+      "then": "Both return 200",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_API_01_HealthAndMetricsOpenWithoutToken"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Auth middleware must only wrap the /api/v1 group."
+    },
+    {
+      "id": "S-API-02",
+      "kind": "success",
+      "area": "api",
+      "severity": "critical",
+      "title": "A valid token can list applications and clusters",
+      "given": "Token auth enabled",
+      "when": "GET /api/v1/applications and /clusters with an admin token",
+      "then": "200 with JSON arrays containing the registered resources",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_API_02_ValidTokenCanListResources"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Authentication rejects valid credentials or the list endpoints changed shape."
+    },
+    {
+      "id": "S-API-03",
+      "kind": "success",
+      "area": "api",
+      "severity": "critical",
+      "title": "Token scopes gate read, sync and admin operations",
+      "given": "read, sync and admin tokens",
+      "when": "Each token calls GET, POST /sync and DELETE endpoints",
+      "then": "read: GET only; sync: GET and POST /sync|/approve|/check|/plan; admin: everything; others get 403",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_API_03_ScopesGateReadSyncAndAdminOperations"
+            ]
+          },
+          {
+            "package": "./internal/api",
+            "tests": [
+              "TestAuthMiddleware",
+              "TestRequiredScope",
+              "TestParseTokens"
+            ]
+          }
+        ]
+      },
+      "if_failing": "See internal/api/auth.go requiredScope; every new mutating route must be mapped deliberately."
+    },
+    {
+      "id": "S-API-04",
+      "kind": "success",
+      "area": "api",
+      "severity": "medium",
+      "title": "Mutating calls are audited without leaking the token",
+      "given": "A sync-scope token",
+      "when": "It triggers a sync",
+      "then": "An io.gitopsctl.api.audit event with method, path, status and a non-secret token_id appears in event history; the token never appears",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_API_04_MutatingCallsAreAuditedWithoutLeakingTheToken"
+            ]
+          },
+          {
+            "package": "./internal/api",
+            "tests": [
+              "TestAuthAuditsMutatingCallsWithoutLeakingToken"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Audit emission or token_id derivation regressed."
+    },
+    {
+      "id": "S-START-01",
+      "kind": "success",
+      "area": "security",
+      "severity": "critical",
+      "title": "Without a token the API binds to loopback only",
+      "given": "No --api-token or --api-token-file",
+      "when": "start --api-address :PORT",
+      "then": "A warning is logged and the API is not reachable on non-loopback interfaces",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_START_01_WithoutTokenTheAPIBindsToLoopbackOnly"
+            ]
+          },
+          {
+            "package": "./cmd",
+            "tests": [
+              "TestResolveListenAddress"
+            ]
+          }
+        ]
+      },
+      "if_failing": "An unauthenticated API on all interfaces can modify remote clusters. Block release."
+    },
+    {
+      "id": "S-CLI-01",
+      "kind": "success",
+      "area": "cli",
+      "severity": "high",
+      "title": "Registration persists state and leaves no temp files",
+      "given": "A valid kubeconfig",
+      "when": "register-cluster then register-apps --prune run",
+      "then": "clusters.json and applications.json contain the entries (prune true); list-apps shows the app; no .tmp- files remain in configs/",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_CLI_01_RegistrationPersistsStateAtomically"
+            ]
+          }
+        ]
+      },
+      "if_failing": "State writes must go through common.WriteFileAtomic."
+    },
+    {
+      "id": "S-DOC-01",
+      "kind": "success",
+      "area": "docs",
+      "severity": "medium",
+      "title": "Example configs load and every start flag is documented",
+      "given": "examples/configs copied into configs/",
+      "when": "list-apps and list-clusters run; start --help is compared with docs",
+      "then": "The example app and cluster are listed with their repo and cluster names; each start flag appears in docs/cli-reference.md or docs/configuration.md",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_DOC_01_ExamplesLoadAndFlagsAreDocumented"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Config JSON keys are snake_case (repo_url, cluster_name, kubeconfig_path...). Fix docs/examples, not the loader."
+    },
+    {
+      "id": "S-REL-01",
+      "kind": "success",
+      "area": "release",
+      "severity": "medium",
+      "title": "Release supply chain is hardened",
+      "given": "The repository",
+      "when": "Static checks run",
+      "then": "LICENSE is Apache-2.0; GoReleaser configures checksum, sboms, signs and docker_signs; Dockerfile base is digest-pinned; every workflow action is SHA-pinned; workflow go-version equals go.mod; no @latest tool installs",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_REL_01_ReleaseSupplyChainIsHardened"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Resolve new action tags to commit SHAs (gh api repos/OWNER/REPO/commits/TAG --jq .sha)."
+    },
+    {
+      "id": "F-API-01",
+      "kind": "failure",
+      "area": "api",
+      "severity": "critical",
+      "title": "Missing, wrong or non-bearer credentials are rejected",
+      "given": "Token auth enabled",
+      "when": "Requests carry no token, a wrong token, or a Basic scheme",
+      "then": "401 with WWW-Authenticate: Bearer and no data in the body",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_API_01_MissingOrInvalidCredentialsAreRejected"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Authentication bypass. Block release."
+    },
+    {
+      "id": "F-API-02",
+      "kind": "failure",
+      "area": "api",
+      "severity": "critical",
+      "title": "Insufficient scope is refused and state is untouched",
+      "given": "A read token",
+      "when": "It calls DELETE /applications/web",
+      "then": "403 and the application still exists",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_API_02_InsufficientScopeLeavesStateUntouched"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Privilege escalation. Block release."
+    },
+    {
+      "id": "F-API-03",
+      "kind": "failure",
+      "area": "api",
+      "severity": "medium",
+      "title": "Unknown resources and malformed bodies fail cleanly",
+      "given": "An authenticated admin",
+      "when": "sync, plan or approve target an unknown app; registration body is malformed JSON",
+      "then": "404 for unknown apps (including approve), 400 for malformed JSON; the controller stays alive",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_API_03_MalformedAndUnknownRequestsFailCleanly"
+            ]
+          },
+          {
+            "package": "./internal/api/app",
+            "tests": [
+              "TestApprove_UnknownApplicationIsNotFound",
+              "TestPlan_ErrorMapping"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Handlers must validate existence before queueing work."
+    },
+    {
+      "id": "F-SEC-01",
+      "kind": "failure",
+      "area": "security",
+      "severity": "critical",
+      "title": "Secrets never appear in process output",
+      "given": "A controller running with tokens and a CLI using --api-token",
+      "when": "Good and bad requests are made",
+      "then": "No token value appears in controller logs or CLI output",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_SEC_01_SecretsNeverAppearInProcessOutput"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Remove the token from log fields, error messages and request logging."
+    },
+    {
+      "id": "F-START-01",
+      "kind": "failure",
+      "area": "resilience",
+      "severity": "high",
+      "title": "Corrupt state stops startup without being overwritten",
+      "given": "A truncated applications.json",
+      "when": "start runs",
+      "then": "Non-zero exit with 'failed to load applications'; the file is byte-for-byte unchanged",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_START_01_CorruptStateFileStopsStartupWithoutOverwritingIt"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Never write state before it has been loaded successfully."
+    },
+    {
+      "id": "F-START-02",
+      "kind": "failure",
+      "area": "security",
+      "severity": "medium",
+      "title": "A malformed token file stops startup",
+      "given": "A token file with a line lacking a scope",
+      "when": "start --api-token-file runs",
+      "then": "Non-zero exit mentioning the token file; the API never starts unauthenticated",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_START_02_MalformedTokenFileStopsStartup"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Fail closed on invalid auth configuration."
+    },
+    {
+      "id": "F-CLI-01",
+      "kind": "failure",
+      "area": "cli",
+      "severity": "high",
+      "title": "Invalid application registrations are rejected without side effects",
+      "given": "A registered cluster",
+      "when": "register-apps gets a bad URL, interval below 10s, bad sync policy, unknown cluster or missing args",
+      "then": "Every call exits non-zero and applications.json gains no entries",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_CLI_01_InvalidApplicationRegistrationsAreRejectedWithoutSideEffects"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Validation must run before any state is written."
+    },
+    {
+      "id": "F-CLI-02",
+      "kind": "failure",
+      "area": "cli",
+      "severity": "high",
+      "title": "Invalid cluster registrations are rejected without side effects",
+      "given": "No clusters",
+      "when": "register-cluster gets a missing, invalid or directory kubeconfig or an invalid name",
+      "then": "Every call exits non-zero and clusters.json gains no entries",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_CLI_02_InvalidClusterRegistrationsAreRejectedWithoutSideEffects"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Validation must run before any state is written."
+    },
+    {
+      "id": "F-SYNC-01",
+      "kind": "failure",
+      "area": "resilience",
+      "severity": "critical",
+      "title": "A cluster API outage is reported and the app recovers on its own",
+      "given": "The cluster rejects every write",
+      "when": "The controller starts, then the outage ends",
+      "then": "Status Error with 'Apply error' and failures >= 1 while the controller stays alive; afterwards the app converges to Synced without a restart",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_SYNC_01_ClusterOutageIsReportedAndRecoveredFrom"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_RecoversAfterApplyFailure",
+              "TestPerformSync_InterruptedApplyIsRetriedOnNextPoll"
+            ]
+          }
+        ]
+      },
+      "if_failing": "reconcileApp must keep polling after a failed sync whenever a cluster client exists."
+    },
+    {
+      "id": "F-SYNC-02",
+      "kind": "failure",
+      "area": "resilience",
+      "severity": "high",
+      "title": "An unreachable Git repository is reported and the app recovers",
+      "given": "A repo path that does not exist yet",
+      "when": "The controller starts and the repo later appears",
+      "then": "Status Error with 'Git error' and failures >= 1; once reachable the app syncs without a restart",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_SYNC_02_UnreachableGitRepositoryIsReportedAndRecoveredFrom"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_RecoversAfterGitRepositoryBecomesReachable"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Git failures must be transient, not terminal."
+    },
+    {
+      "id": "F-SYNC-03",
+      "kind": "failure",
+      "area": "security",
+      "severity": "critical",
+      "title": "Namespace restrictions block forbidden resources",
+      "given": "A cluster limited to namespace demo",
+      "when": "A manifest targets namespace prod",
+      "then": "Nothing is created; status Error explains the namespace is not in the allowed list",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_SYNC_03_NamespaceRestrictionBlocksForbiddenResources"
+            ]
+          }
+        ]
+      },
+      "if_failing": "isNamespaceAllowed must gate apply, prune and health checks."
+    },
+    {
+      "id": "F-SYNC-04",
+      "kind": "failure",
+      "area": "resilience",
+      "severity": "high",
+      "title": "Sync failures are never masked by the health check",
+      "given": "An app with healthy previously-applied resources",
+      "when": "A sync fails or is held OutOfSync",
+      "then": "Status stays Error/OutOfSync and is not overwritten by Healthy",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestCheckHealth_DoesNotMaskSyncFailures"
+            ]
+          }
+        ]
+      },
+      "if_failing": "checkHealth must only run for Synced/Healthy/Progressing/Degraded."
+    },
+    {
+      "id": "F-PRUNE-01",
+      "kind": "failure",
+      "area": "prune",
+      "severity": "critical",
+      "title": "Resources not owned by the app survive pruning",
+      "given": "A prune-enabled app whose stale live object lost its ownership labels",
+      "when": "Its manifest is removed from Git",
+      "then": "The object is not deleted",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_PRUNE_01_ResourcesNotOwnedByTheAppSurvivePruning"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Prune must verify managed-by and gitopsctl.io/app labels before deleting."
+    },
+    {
+      "id": "F-PRUNE-02",
+      "kind": "failure",
+      "area": "prune",
+      "severity": "critical",
+      "title": "Mass deletion is refused",
+      "given": "A prune-enabled app tracking 13 resources",
+      "when": "12 manifests are removed at once",
+      "then": "Status Error 'Prune error'; all resources remain",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_PRUNE_02_MassDeletionIsRefused"
+            ]
+          }
+        ]
+      },
+      "if_failing": "The max-deletions guard (k8s.DefaultMaxPrune) was bypassed."
+    },
+    {
+      "id": "F-PRUNE-03",
+      "kind": "failure",
+      "area": "prune",
+      "severity": "critical",
+      "title": "Nothing is pruned while the same sync fails to apply",
+      "given": "A prune-enabled app",
+      "when": "A commit removes a manifest and adds one the cluster rejects",
+      "then": "The stale resource is kept while the apply fails and is pruned after recovery",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_PRUNE_03_NothingIsPrunedWhileTheApplyFails"
+            ]
+          },
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestPerformSync_PruneFailureRetainsStaleAndRetriesOnNextPoll"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Prune must run only after a fully successful apply."
+    },
+    {
+      "id": "F-CONC-01",
+      "kind": "failure",
+      "area": "concurrency",
+      "severity": "high",
+      "title": "Shutdown is safe under concurrent commands",
+      "given": "A running controller",
+      "when": "Stop is called twice or while commands are being sent",
+      "then": "No panic, no deadlock, no blocked senders, race detector clean",
+      "verify": {
+        "type": "go-test",
+        "race": true,
+        "targets": [
+          {
+            "package": "./internal/controller",
+            "tests": [
+              "TestController_StopIsIdempotent",
+              "TestController_SendersDoNotBlockOrPanicAfterStop",
+              "TestController_ConcurrentStopAndSenders",
+              "TestHandleAppCommand_SyncRequestsCoalesceWithoutBlocking",
+              "TestSaveAppStatus_PropagatesSyncResultsWithoutClobberingApproval"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Do not close command channels; senders must select on ctx.Done()."
+    },
+    {
+      "id": "F-STATE-01",
+      "kind": "failure",
+      "area": "resilience",
+      "severity": "high",
+      "title": "State files are written atomically and corrupt state is rejected",
+      "given": "applications.json and clusters.json",
+      "when": "They are saved, or loaded when truncated or invalid",
+      "then": "Writes go via temp file and rename with no leftovers; corrupt files return errors, never partial data",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./internal/common",
+            "tests": [
+              "TestWriteFileAtomic",
+              "TestWriteFileAtomic_MissingDirectoryFailsWithoutCreatingTarget",
+              "TestWriteFileAtomic_RenameFailureLeavesNoTempFile"
+            ]
+          },
+          {
+            "package": "./internal/core/app",
+            "tests": [
+              "TestLoadApplications_RejectsCorruptState",
+              "TestSaveApplications_IsAtomicAndRoundTrips"
+            ]
+          },
+          {
+            "package": "./internal/core/cluster",
+            "tests": [
+              "TestLoadClusters_RejectsCorruptState",
+              "TestLoadClusters_MissingFileIsEmpty",
+              "TestSaveClusters_LeavesNoTempFiles"
+            ]
+          }
+        ]
+      },
+      "if_failing": "A crash mid-write must never leave truncated JSON."
+    },
+    {
+      "id": "E-KIND-01",
+      "kind": "success",
+      "area": "e2e",
+      "severity": "high",
+      "title": "Real cluster: apply, label, diff and prune against kind",
+      "given": "kind, kubectl and a running Docker daemon",
+      "when": ".verify/e2e/kind.sh runs",
+      "then": "ConfigMaps are applied with ownership labels; diff-app reports unchanged; removing a manifest with prune deletes only that object",
+      "verify": {
+        "type": "e2e",
+        "script": ".verify/e2e/kind.sh",
+        "result_ids": [
+          "E-KIND-01"
+        ],
+        "skip_if_missing": [
+          "kind",
+          "kubectl",
+          "docker"
+        ]
+      },
+      "if_failing": "The fake API in .verify/integration may be hiding real API behaviour (defaults, field managers, discovery)."
+    }
+  ]
+}

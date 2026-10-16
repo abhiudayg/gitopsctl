@@ -1,14 +1,8 @@
 package cmd
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"strings"
-	"time"
 
 	"aeswibon.com/github/gitopsctl/internal/events"
 	"github.com/spf13/cobra"
@@ -30,43 +24,20 @@ This is used when the application's sync policy is set to 'manual'.`,
   gitopsctl --api-url http://127.0.0.1:9090 approve-app -n myapp -c 827e3ef`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		base := strings.TrimRight(apiBaseURL, "/")
-		path := fmt.Sprintf("%s/api/v1/applications/%s/approve", base, url.PathEscape(approveAppName))
-
-		payload := map[string]string{
-			"commitHash": approveCommitHash,
-		}
-		data, err := json.Marshal(payload)
+		msg, err := postAccepted(
+			fmt.Sprintf("/api/v1/applications/%s/approve", url.PathEscape(approveAppName)),
+			map[string]string{"commitHash": approveCommitHash},
+		)
 		if err != nil {
 			return err
 		}
-
-		client := &http.Client{Timeout: 30 * time.Second}
-		req, err := http.NewRequest(http.MethodPost, path, bytes.NewBuffer(data))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("request failed: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		body, _ := io.ReadAll(resp.Body)
-		switch resp.StatusCode {
-		case http.StatusAccepted:
-			emitCommandEvent(events.TypeAppSyncRequested, map[string]any{
-				"app":     approveAppName,
-				"commit":  approveCommitHash,
-				"api_url": apiBaseURL,
-			})
-			fmt.Println(strings.TrimSpace(string(body)))
-			return nil
-		default:
-			return fmt.Errorf("unexpected status %s: %s", resp.Status, strings.TrimSpace(string(body)))
-		}
+		emitCommandEvent(events.TypeAppSyncRequested, map[string]any{
+			"app":     approveAppName,
+			"commit":  approveCommitHash,
+			"api_url": apiBaseURL,
+		})
+		fmt.Println(msg)
+		return nil
 	},
 }
 

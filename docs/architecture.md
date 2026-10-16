@@ -68,7 +68,7 @@ The Kubernetes client wraps `client-go` dynamic clients and REST mapping. It:
 
 - Maps YAML resources to Kubernetes API resources.
 - Defaults missing namespaces on namespaced resources to `default`.
-- Enforces `allowedNamespaces` when configured on the target cluster.
+- Enforces `allowed_namespaces` when configured on the target cluster.
 - Creates missing resources and updates existing resources.
 - Tracks applied resource metadata for later health checks.
 

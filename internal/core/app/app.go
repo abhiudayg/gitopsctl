@@ -32,6 +32,7 @@ type Application struct {
 	Message             string             `json:"message,omitempty"`
 	ConsecutiveFailures int                `json:"consecutive_failures,omitempty"`
 	SyncPolicy          string             `json:"sync_policy,omitempty"`
+	Prune               bool               `json:"prune,omitempty"`
 	ApprovedGitHash     string             `json:"approved_git_hash,omitempty"`
 	LatestGitHash       string             `json:"latest_git_hash,omitempty"`
 	WebhookURL          string             `json:"webhook_url,omitempty"`
@@ -176,7 +177,7 @@ func SaveApplications(apps *Applications, filePath string) error {
 		return fmt.Errorf("failed to marshal applications data: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := common.WriteFileAtomic(filePath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write applications file %s: %w", filePath, err)
 	}
 	return nil

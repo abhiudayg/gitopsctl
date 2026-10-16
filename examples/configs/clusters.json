@@ -1,9 +1,9 @@
 [
   {
     "name": "local-dev",
-    "kubeconfigPath": "/Users/you/.kube/config",
+    "kubeconfig_path": "/Users/you/.kube/config",
     "status": "Pending",
-    "message": "Example cluster registered, update kubeconfigPath before use",
-    "allowedNamespaces": ["demo"]
+    "message": "Example cluster registered, update kubeconfig_path before use",
+    "allowed_namespaces": ["demo"]
   }
 ]

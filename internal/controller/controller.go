@@ -69,6 +69,8 @@ type Controller struct {
 	wg                 sync.WaitGroup
 	emitter            events.Emitter
 	appConfigPath      string
+	plannerFactory     PlannerFactory
+	stopOnce           sync.Once
 }
 
 type Option func(*Controller)
@@ -90,6 +92,7 @@ func NewController(logger *zap.Logger, apps *app.Applications, clusters *cluster
 		appCommandChan:     make(chan AppCommand, 50),
 		clusterCommandChan: make(chan ClusterCommand, 50),
 		runningApps:        make(map[string]*appRuntime),
+		plannerFactory:     defaultPlannerFactory,
 	}
 	for _, o := range opts {
 		o(ctrl)
@@ -129,7 +132,7 @@ func (c *Controller) Start(appConfigFile string) error {
 	c.apps.RUnlock()
 
 	for _, application := range appsToStart {
-		c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: application.Name}
+		c.sendApp(AppCommand{Type: AppCommandStart, AppName: application.Name})
 	}
 
 	c.clusters.RLock()
@@ -137,7 +140,7 @@ func (c *Controller) Start(appConfigFile string) error {
 	c.clusters.RUnlock()
 
 	for _, cl := range clustersToCheck {
-		c.clusterCommandChan <- ClusterCommand{Type: ClusterCommandCheck, ClusterName: cl.Name}
+		c.sendCluster(ClusterCommand{Type: ClusterCommandCheck, ClusterName: cl.Name})
 	}
 
 	c.logger.Info("Initial reconciliation dispatched.")
@@ -149,13 +152,27 @@ func (c *Controller) Start(appConfigFile string) error {
 }
 
 func (c *Controller) Stop() {
-	c.emit(context.Background(), events.TypeControllerStopping, map[string]any{})
-	c.logger.Info("Stopping GitOps controller...")
-	c.cancel()
-	close(c.appCommandChan)
-	close(c.clusterCommandChan)
-	c.wg.Wait()
-	c.logger.Info("GitOps controller stopped.")
+	c.stopOnce.Do(func() {
+		c.emit(context.Background(), events.TypeControllerStopping, map[string]any{})
+		c.logger.Info("Stopping GitOps controller...")
+		c.cancel()
+		c.wg.Wait()
+		c.logger.Info("GitOps controller stopped.")
+	})
+}
+
+func (c *Controller) sendApp(cmd AppCommand) {
+	select {
+	case c.appCommandChan <- cmd:
+	case <-c.ctx.Done():
+	}
+}
+
+func (c *Controller) sendCluster(cmd ClusterCommand) {
+	select {
+	case c.clusterCommandChan <- cmd:
+	case <-c.ctx.Done():
+	}
 }
 
 func (c *Controller) configWatcher(filePath string) {
@@ -201,7 +218,7 @@ func (c *Controller) reloadApplications(filePath string) {
 		if !ok || existing.RepoURL != a.RepoURL || existing.Branch != a.Branch || existing.Path != a.Path || existing.ClusterName != a.ClusterName || existing.Interval != a.Interval {
 			c.logger.Info("Detected new or updated application configuration", zap.String("app", a.Name))
 			c.apps.Add(a)
-			c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: a.Name}
+			c.sendApp(AppCommand{Type: AppCommandStart, AppName: a.Name})
 		}
 	}
 
@@ -212,34 +229,34 @@ func (c *Controller) reloadApplications(filePath string) {
 	for name := range c.apps.Apps {
 		if !currentNames[name] {
 			c.logger.Info("Detected application removal", zap.String("app", name))
-			c.appCommandChan <- AppCommand{Type: AppCommandStop, AppName: name}
+			c.sendApp(AppCommand{Type: AppCommandStop, AppName: name})
 			delete(c.apps.Apps, name)
 		}
 	}
 }
 
 func (c *Controller) StartApp(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandStart, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandStart, AppName: appName})
 }
 
 func (c *Controller) StopApp(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandStop, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandStop, AppName: appName})
 }
 
 func (c *Controller) TriggerSync(appName string) {
-	c.appCommandChan <- AppCommand{Type: AppCommandSync, AppName: appName}
+	c.sendApp(AppCommand{Type: AppCommandSync, AppName: appName})
 }
 
 func (c *Controller) ApproveSync(appName string, commitHash string) {
-	c.appCommandChan <- AppCommand{
+	c.sendApp(AppCommand{
 		Type:    AppCommandApprove,
 		AppName: appName,
 		Data:    map[string]any{"commitHash": commitHash},
-	}
+	})
 }
 
 func (c *Controller) TriggerClusterHealthCheck(clusterName string) {
-	c.clusterCommandChan <- ClusterCommand{Type: ClusterCommandCheck, ClusterName: clusterName}
+	c.sendCluster(ClusterCommand{Type: ClusterCommandCheck, ClusterName: clusterName})
 }
 
 func (c *Controller) commandDispatcher(appConfigFile string) {
@@ -295,33 +312,36 @@ func (c *Controller) clusterHealthChecker() {
 
 func (c *Controller) performClusterHealthCheck(ctx context.Context, cl *cluster.Cluster) {
 	logger := c.logger.With(zap.String("cluster", cl.Name))
+	var status, message string
 	k8sClient, err := k8s.NewClientSet(logger, cl.KubeconfigPath, cl.AllowedNamespaces)
 	if err != nil {
-		cl.Status = "Error"
-		cl.Message = fmt.Sprintf("Failed to create K8s client: %v", err)
+		status = "Error"
+		message = fmt.Sprintf("Failed to create K8s client: %v", err)
 	} else {
 		checkCtx, checkCancel := context.WithTimeout(ctx, K8sConnectTimeout)
 		defer checkCancel()
 		if err := k8sClient.CheckConnectivity(checkCtx); err != nil {
-			cl.Status = "Unreachable"
-			cl.Message = fmt.Sprintf("Connectivity failed: %v", err)
+			status = "Unreachable"
+			message = fmt.Sprintf("Connectivity failed: %v", err)
 			metrics.ClusterStatus.WithLabelValues(cl.Name).Set(0)
 		} else {
-			cl.Status = "Active"
-			cl.Message = "Connectivity successful."
+			status = "Active"
+			message = "Connectivity successful."
 			metrics.ClusterStatus.WithLabelValues(cl.Name).Set(1)
 		}
 	}
-	cl.LastCheckedAt = time.Now()
 
 	c.clusters.Lock()
+	cl.Status = status
+	cl.Message = message
+	cl.LastCheckedAt = time.Now()
 	_ = cluster.SaveClusters(c.clusters, cluster.DefaultClusterConfigFile)
 	c.clusters.Unlock()
 
 	c.emit(ctx, events.TypeClusterHealthCompleted, map[string]any{
 		"cluster": cl.Name,
-		"status":  cl.Status,
-		"message": cl.Message,
+		"status":  status,
+		"message": message,
 	})
 }
 
@@ -404,7 +424,7 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 	defer c.wg.Done()
 	defer func() {
 		c.mu.Lock()
-		if rt, ok := c.runningApps[app.Name]; ok && &rt.cancel == &appCancel {
+		if rt, ok := c.runningApps[app.Name]; ok && rt.syncChan == syncChan {
 			delete(c.runningApps, app.Name)
 		}
 		c.mu.Unlock()
@@ -464,7 +484,7 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 	}
 
 	// Terminal error on initial sync (e.g. cluster missing) — stop looping.
-	if app.Status == "Error" {
+	if app.Status == "Error" && client == nil {
 		return
 	}
 
@@ -493,9 +513,16 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 type k8sApplier interface {
 	ApplyManifests(ctx context.Context, manifestsDir string, appName, clusterName string) ([]k8s.ResourceMetadata, []error)
 	GetResourceHealth(ctx context.Context, r k8s.ResourceMetadata) (string, string, error)
+	Prune(ctx context.Context, appName string, previous, current []k8s.ResourceMetadata, maxDeletions int) ([]k8s.ResourceMetadata, error)
 }
 
 func (c *Controller) performSync(ctx context.Context, logger *zap.Logger, application *app.Application, repoDir string, client k8sApplier, appConfigFile string, trigger string) {
+	c.apps.RLock()
+	if shared, ok := c.apps.Get(application.Name); ok {
+		application.ApprovedGitHash = shared.ApprovedGitHash
+	}
+	c.apps.RUnlock()
+
 	oldStatus := application.Status
 	oldHash := application.LastSyncedGitHash
 	c.emit(ctx, events.TypeAppSyncStarted, map[string]any{"app": application.Name, "trigger": trigger})
@@ -570,21 +597,39 @@ func (c *Controller) performSync(ctx context.Context, logger *zap.Logger, applic
 		application.Message = fmt.Sprintf("Synced to %s", currentHash)
 		application.ConsecutiveFailures = 0
 
-		// Update tracked resources
-		application.AppliedResources = make([]app.ResourceMetadata, 0, len(applied))
-		for _, r := range applied {
-			application.AppliedResources = append(application.AppliedResources, app.ResourceMetadata{
-				Group:     r.Group,
-				Version:   r.Version,
-				Kind:      r.Kind,
-				Namespace: r.Namespace,
-				Name:      r.Name,
-			})
+		previousResources := application.AppliedResources
+		application.AppliedResources = toAppResources(applied)
+
+		if application.Prune {
+			retained, pruneErr := client.Prune(ctx, application.Name, toK8sResources(previousResources), applied, k8s.DefaultMaxPrune)
+			application.AppliedResources = append(application.AppliedResources, toAppResources(retained)...)
+			if pruneErr != nil {
+				application.LastSyncedGitHash = oldHash
+				application.Status = "Error"
+				application.Message = fmt.Sprintf("Prune error: %v", pruneErr)
+				application.ConsecutiveFailures++
+			}
 		}
 	}
 
 	c.notify(application, oldStatus, oldHash)
 	c.saveAppStatus(application, appConfigFile, true)
+}
+
+func toAppResources(in []k8s.ResourceMetadata) []app.ResourceMetadata {
+	out := make([]app.ResourceMetadata, 0, len(in))
+	for _, r := range in {
+		out = append(out, app.ResourceMetadata(r))
+	}
+	return out
+}
+
+func toK8sResources(in []app.ResourceMetadata) []k8s.ResourceMetadata {
+	out := make([]k8s.ResourceMetadata, 0, len(in))
+	for _, r := range in {
+		out = append(out, k8s.ResourceMetadata(r))
+	}
+	return out
 }
 
 func (c *Controller) notify(application *app.Application, oldStatus, oldHash string) {
@@ -608,6 +653,11 @@ func (c *Controller) notify(application *app.Application, oldStatus, oldHash str
 }
 
 func (c *Controller) checkHealth(ctx context.Context, logger *zap.Logger, application *app.Application, client k8sApplier, appConfigFile string) {
+	switch application.Status {
+	case "Synced", "Healthy", "Progressing", "Degraded":
+	default:
+		return
+	}
 	if client == nil || len(application.AppliedResources) == 0 {
 		return
 	}
@@ -677,6 +727,8 @@ func (c *Controller) saveAppStatus(appToSave *app.Application, appConfigFile str
 	originalApp.Message = appToSave.Message
 	originalApp.LastSyncedGitHash = appToSave.LastSyncedGitHash
 	originalApp.ConsecutiveFailures = appToSave.ConsecutiveFailures
+	originalApp.LatestGitHash = appToSave.LatestGitHash
+	originalApp.AppliedResources = appToSave.AppliedResources
 
 	_ = app.SaveApplications(c.apps, appConfigFile)
 }

@@ -8,3 +8,7 @@ coverage.html
 internal/**/configs
 # But don't ignore examples
 !examples/configs
+
+# verification output
+.verify/report.json
+.verify/.work/

@@ -73,13 +73,14 @@ docker run --rm -it \
   -v "$HOME/.kube/config:/root/.kube/config:ro" \
   -v "$PWD/configs:/app/configs" \
   -p 8080:8080 \
+  -e GITOPSCTL_API_TOKEN \
   ghcr.io/aeswibon/gitopsctl:latest \
   start --api-address 0.0.0.0:8080
 ```
 
 Notes:
 
-- `kubeconfigPath` inside `configs/clusters.json` must match the path inside the container, such as `/root/.kube/config`.
+- `kubeconfig_path` inside `configs/clusters.json` must match the path inside the container, such as `/root/.kube/config`.
 - Mount SOPS keys or cloud credentials when encrypted manifests need decryption.
 - Mount `configs/` as writable because GitOpsCTL persists status back to JSON files.
 

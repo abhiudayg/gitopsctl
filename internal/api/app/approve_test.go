@@ -1,10 +1,12 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
 	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	"github.com/labstack/echo/v4"
 )
 
 func TestApprove_RejectsMissingCommit(t *testing.T) {
@@ -43,5 +45,18 @@ func TestApprove_AcceptsCommitHash(t *testing.T) {
 	}
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, rec.Code)
+	}
+}
+
+func TestApprove_UnknownApplicationIsNotFound(t *testing.T) {
+	h, e, _, _ := newTestHandler()
+	c, _ := newJSONContext(e, http.MethodPost, "/applications/ghost/approve", `{"commitHash":"deadbeef"}`)
+	c.SetParamNames("name")
+	c.SetParamValues("ghost")
+
+	err := h.Approve(c)
+	var httpErr *echo.HTTPError
+	if !errors.As(err, &httpErr) || httpErr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %v", err)
 	}
 }

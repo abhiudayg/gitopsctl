@@ -14,6 +14,7 @@ var (
 	logger *zap.Logger
 	// apiBaseURL is the controller REST API base (for CLI commands that call into a running gitopsctl start).
 	apiBaseURL string
+	apiToken   string
 	// Optional integration event sinks shared by start + mutating CLI commands.
 	eventsFile           string
 	eventsWebhookURL     string
@@ -44,6 +45,9 @@ and applies Kubernetes manifests to target clusters.`,
 			return fmt.Errorf("failed to initialize logger: %w", err)
 		}
 		zap.ReplaceGlobals(logger)
+		if apiToken == "" {
+			apiToken = os.Getenv("GITOPSCTL_API_TOKEN")
+		}
 		return nil
 	},
 	SilenceUsage: true,
@@ -74,6 +78,7 @@ func init() {
 	rootCmd.AddGroup(appGroup)
 	rootCmd.AddGroup(clusterGroup)
 	rootCmd.PersistentFlags().StringVar(&apiBaseURL, "api-url", "http://127.0.0.1:8080", "Base URL of the gitopsctl API (for commands that require a running controller)")
+	rootCmd.PersistentFlags().StringVar(&apiToken, "api-token", "", "Bearer token for the gitopsctl API (defaults to $GITOPSCTL_API_TOKEN); with 'start' it is accepted as an admin token")
 	rootCmd.PersistentFlags().StringVar(&eventsFile, "events-file", "", "Append integration events as JSON lines to this file (optional)")
 	rootCmd.PersistentFlags().StringVar(&eventsWebhookURL, "events-webhook", "", "POST each integration event as JSON to this URL (optional)")
 	rootCmd.PersistentFlags().StringVar(&eventsWebhookBearer, "events-webhook-bearer", "", "Bearer token for --events-webhook Authorization header (optional)")

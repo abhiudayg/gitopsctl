@@ -112,6 +112,6 @@ config.sops.json
 - Commit only encrypted secret files.
 - Keep decryption keys and cloud credentials outside the repo.
 - Run the controller with least-privilege decrypt permissions.
-- Use Kubernetes RBAC and `allowedNamespaces` to limit blast radius.
+- Use Kubernetes RBAC and `allowed_namespaces` to limit blast radius.
 - Rotate keys and re-encrypt secrets when access changes.
 - Confirm decrypted files are not produced in your working tree before committing.

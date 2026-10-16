@@ -14,21 +14,20 @@ func (h *Handler) Sync(c echo.Context) error {
 	name := c.Param("name")
 
 	h.apps.Lock()
-	defer h.apps.Unlock()
-
 	app, ok := h.apps.Get(name)
 	if !ok {
+		h.apps.Unlock()
 		h.logger.Warn("Manual sync requested for non-existent application", zap.String("name", name))
 		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
 	}
+	app.Status = "SyncRequested"
+	app.Message = "Manual sync requested."
+	h.apps.Unlock()
 
 	h.controller.TriggerSync(name)
 	h.controller.Emit(events.TypeAppSyncRequested, map[string]any{
 		"app": name,
 	})
-
-	app.Status = "SyncRequested"
-	app.Message = "Manual sync requested."
 	// No need to save to disk here, controller's next loop or signal will handle it.
 	h.logger.Info("Manual sync requested for application", zap.String("name", name))
 	return c.JSON(http.StatusAccepted, SyncTriggerResponse{

@@ -50,6 +50,8 @@ type Response struct {
 	ConsecutiveFailures int `json:"consecutive_failures"`
 	// SyncPolicy determines how changes are applied ("auto" or "manual").
 	SyncPolicy string `json:"sync_policy"`
+	// Prune reports whether resources removed from Git are deleted from the cluster.
+	Prune bool `json:"prune"`
 	// ApprovedGitHash is the commit hash currently approved for deployment in manual sync mode.
 	ApprovedGitHash string `json:"approved_git_hash"`
 	// LastUpdated is the timestamp of the last update to the application's status.
@@ -77,6 +79,24 @@ func ConvertToResponse(app *appcore.Application) Response {
 		Message:             app.Message,
 		ConsecutiveFailures: app.ConsecutiveFailures,
 		SyncPolicy:          app.SyncPolicy,
+		Prune:               app.Prune,
 		ApprovedGitHash:     app.ApprovedGitHash,
 	}
+}
+
+// PlanItemResponse describes one resource in a plan.
+type PlanItemResponse struct {
+	Action    string `json:"action"`
+	Group     string `json:"group"`
+	Version   string `json:"version"`
+	Kind      string `json:"kind"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// PlanResponse is returned by the plan endpoint.
+type PlanResponse struct {
+	App    string             `json:"app"`
+	Commit string             `json:"commit"`
+	Items  []PlanItemResponse `json:"items"`
 }

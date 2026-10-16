@@ -37,6 +37,10 @@ First off, thank you for considering contributing to GitOpsCTL! It's people like
    go test -coverprofile=coverage.out ./...
    go tool cover -func=coverage.out
    ```
+   Then run the success/failure scenarios in `.verify/` (needs `jq`); see `.verify/README.md`:
+   ```bash
+   .verify/run.sh --no-e2e
+   ```
 
 
 

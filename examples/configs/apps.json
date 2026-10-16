@@ -1,12 +1,12 @@
 [
   {
     "name": "nginx-demo",
-    "repoURL": "https://github.com/aeswibon/gitopsctl.git",
+    "repo_url": "https://github.com/aeswibon/gitopsctl.git",
     "branch": "main",
     "path": "examples/manifests",
-    "clusterName": "local-dev",
+    "cluster_name": "local-dev",
     "interval": "30s",
-    "syncPolicy": "auto",
+    "sync_policy": "auto",
     "status": "Pending",
     "message": "Example application registered, awaiting first sync"
   }

@@ -44,7 +44,7 @@ type Model struct {
 	retryCount    int
 }
 
-func NewModel(apiURL string) Model {
+func NewModel(apiURL, token string) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(accent)
@@ -53,7 +53,7 @@ func NewModel(apiURL string) Model {
 	return Model{
 		loading: true,
 		spinner: s,
-		client:  newAPIClient(apiURL),
+		client:  newAPIClient(apiURL, token),
 		ctx:     ctx,
 		cancel:  cancel,
 	}
@@ -695,8 +695,8 @@ func (m Model) filteredClusters() []ClusterResponse {
 
 // ── Run ───────────────────────────────────────────────────────────────────────
 
-func Run(apiURL string) error {
-	p := tea.NewProgram(NewModel(apiURL), tea.WithAltScreen())
+func Run(apiURL, token string) error {
+	p := tea.NewProgram(NewModel(apiURL, token), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }

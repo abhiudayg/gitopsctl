@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,6 +39,11 @@ const (
 	DefaultQPS = 100
 	// DefaultBurst is the default burst for client-go
 	DefaultBurst = 100
+
+	LabelManagedBy = "app.kubernetes.io/managed-by"
+	LabelApp       = "gitopsctl.io/app"
+	LabelCluster   = "gitopsctl.io/cluster"
+	ManagerName    = "gitopsctl"
 )
 
 // ResourceMetadata stores the basic identity of a Kubernetes resource.
@@ -118,13 +124,29 @@ func NewClientSet(logger *zap.Logger, kubeconfigPath string, allowedNamespaces [
 	}, nil
 }
 
+type manifestDoc struct {
+	source string
+	data   []byte
+}
+
 // ApplyManifests applies Kubernetes manifests from a given directory to the cluster.
 // It checks if the directory contains a Helm chart or Kustomization file and builds it if present.
 // Otherwise, it processes all YAML files in the specified directory.
 func (cs *ClientSet) ApplyManifests(ctx context.Context, manifestsDir string, appName, clusterName string) ([]ResourceMetadata, []error) {
-	cs.logger.Info("Applying manifests", zap.String("directory", manifestsDir))
+	docs, applyErrors := cs.renderManifests(manifestsDir)
 	var appliedResources []ResourceMetadata
-	var applyErrors []error
+	for _, doc := range docs {
+		resources, errs := cs.applyYAMLData(ctx, doc.data, doc.source, appName, clusterName)
+		appliedResources = append(appliedResources, resources...)
+		applyErrors = append(applyErrors, errs...)
+	}
+	return appliedResources, applyErrors
+}
+
+func (cs *ClientSet) renderManifests(manifestsDir string) ([]manifestDoc, []error) {
+	cs.logger.Info("Rendering manifests", zap.String("directory", manifestsDir))
+	var docs []manifestDoc
+	var renderErrors []error
 
 	// Pre-process: Decrypt any SOPS-encrypted files in the directory
 	if err := cs.decryptDirectory(manifestsDir); err != nil {
@@ -158,7 +180,7 @@ func (cs *ClientSet) ApplyManifests(ctx context.Context, manifestsDir string, ap
 		}
 
 		cs.logger.Debug("Successfully rendered Helm chart")
-		return cs.applyYAMLData(ctx, []byte(rel.Manifest), filepath.Join(manifestsDir, "Chart.yaml"), appName, clusterName)
+		return []manifestDoc{{source: filepath.Join(manifestsDir, "Chart.yaml"), data: []byte(rel.Manifest)}}, nil
 	}
 
 	fSys := filesys.MakeFsOnDisk()
@@ -177,14 +199,14 @@ func (cs *ClientSet) ApplyManifests(ctx context.Context, manifestsDir string, ap
 			return nil, []error{fmt.Errorf("failed to convert kustomize output to yaml: %w", err)}
 		}
 
-		cs.logger.Debug("Successfully built kustomization, applying generated YAML")
-		return cs.applyYAMLData(ctx, yamlBytes, filepath.Join(manifestsDir, "kustomization"), appName, clusterName)
+		cs.logger.Debug("Successfully built kustomization")
+		return []manifestDoc{{source: filepath.Join(manifestsDir, "kustomization"), data: yamlBytes}}, nil
 	}
 
-	cs.logger.Info("No kustomization found, applying raw YAML files", zap.String("directory", manifestsDir))
+	cs.logger.Info("No kustomization found, reading raw YAML files", zap.String("directory", manifestsDir))
 	err := filepath.WalkDir(manifestsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			applyErrors = append(applyErrors, fmt.Errorf("filesystem error walking %s: %w", path, err))
+			renderErrors = append(renderErrors, fmt.Errorf("filesystem error walking %s: %w", path, err))
 			return nil
 		}
 		if d.IsDir() {
@@ -198,21 +220,17 @@ func (cs *ClientSet) ApplyManifests(ctx context.Context, manifestsDir string, ap
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
 			cs.logger.Error("Failed to read manifest file", zap.String("file", path), zap.Error(readErr))
-			applyErrors = append(applyErrors, fmt.Errorf("failed to read file %s: %w", path, readErr))
+			renderErrors = append(renderErrors, fmt.Errorf("failed to read file %s: %w", path, readErr))
 			return nil
 		}
 
-		fileResources, fileErrors := cs.applyYAMLData(ctx, data, path, appName, clusterName)
-		if len(fileErrors) > 0 {
-			applyErrors = append(applyErrors, fileErrors...)
-		}
-		appliedResources = append(appliedResources, fileResources...)
+		docs = append(docs, manifestDoc{source: path, data: data})
 		return nil
 	})
 	if err != nil {
-		applyErrors = append(applyErrors, fmt.Errorf("error during manifest directory walk %s: %w", manifestsDir, err))
+		renderErrors = append(renderErrors, fmt.Errorf("error during manifest directory walk %s: %w", manifestsDir, err))
 	}
-	return appliedResources, applyErrors
+	return docs, renderErrors
 }
 
 func (cs *ClientSet) decryptDirectory(dir string) error {
@@ -260,6 +278,11 @@ func hasHelmChart(dir string) bool {
 
 // applyYAMLData takes a byte slice of YAML documents (separated by ---) and applies them to the cluster.
 func (cs *ClientSet) applyYAMLData(ctx context.Context, data []byte, sourceName, appName, clusterName string) ([]ResourceMetadata, []error) {
+	return cs.processYAMLData(ctx, data, sourceName, appName, clusterName, nil)
+}
+
+// processYAMLData applies the documents, or only records what would change when plan is non-nil.
+func (cs *ClientSet) processYAMLData(ctx context.Context, data []byte, sourceName, appName, clusterName string, plan *[]PlanItem) ([]ResourceMetadata, []error) {
 	var appliedResources []ResourceMetadata
 	var applyErrors []error
 	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
@@ -317,8 +340,33 @@ func (cs *ClientSet) applyYAMLData(ctx context.Context, data []byte, sourceName,
 			dr = cs.dynamicClient.Resource(mapping.Resource)
 		}
 
-		// Try to get the resource
-		_, getErr := dr.Get(ctx, unstructuredObj.GetName(), metav1.GetOptions{})
+		labels := unstructuredObj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[LabelManagedBy] = ManagerName
+		labels[LabelApp] = appName
+		labels[LabelCluster] = clusterName
+		unstructuredObj.SetLabels(labels)
+
+		live, getErr := dr.Get(ctx, unstructuredObj.GetName(), metav1.GetOptions{})
+		if getErr != nil && !apierrors.IsNotFound(getErr) {
+			metrics.K8sApplyTotal.WithLabelValues(appName, clusterName, gvk.Kind, "failure").Inc()
+			cs.logger.Error("Failed to get resource",
+				zap.String("kind", gvk.Kind),
+				zap.String("name", unstructuredObj.GetName()),
+				zap.String("namespace", unstructuredObj.GetNamespace()),
+				zap.Error(getErr))
+			applyErrors = append(applyErrors, fmt.Errorf("failed to get %s %s/%s from %s: %w", gvk.Kind, unstructuredObj.GetNamespace(), unstructuredObj.GetName(), sourceName, getErr))
+			continue
+		}
+
+		if plan != nil {
+			ref := ResourceMetadata{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind, Namespace: unstructuredObj.GetNamespace(), Name: unstructuredObj.GetName()}
+			*plan = append(*plan, PlanItem{Resource: ref, Action: planAction(unstructuredObj, live, getErr)})
+			appliedResources = append(appliedResources, ref)
+			continue
+		}
 
 		if getErr != nil {
 			// Resource does not exist, create it

@@ -17,7 +17,7 @@ Unlike in-cluster GitOps controllers, GitOpsCTL can run from a laptop, CI runner
 - Applies raw Kubernetes YAML, Kustomize overlays, or Helm charts.
 - Supports automatic sync and manual approval workflows.
 - Manages multiple clusters from one controller process.
-- Restricts cluster writes to configured namespaces when `allowedNamespaces` is set.
+- Restricts cluster writes to configured namespaces when `allowed_namespaces` is set.
 - Decrypts SOPS-encrypted YAML, YML, and JSON manifests before apply.
 - Tracks app and cluster status in local JSON config files.
 - Exposes an API and TUI for operational commands and live status.
@@ -104,4 +104,4 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), run t
 
 ## License
 
-Add a repository license file before publishing or packaging GitOpsCTL for external distribution.
+GitOpsCTL is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
