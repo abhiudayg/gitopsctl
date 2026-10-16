@@ -282,9 +282,11 @@ func TestAPIClientSendsBearerToken(t *testing.T) {
 		if _, err := client.getApplications(); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := client.sseClient.Get(srv.URL); err != nil {
+		resp, err := client.sseClient.Get(srv.URL)
+		if err != nil {
 			t.Fatal(err)
 		}
+		_ = resp.Body.Close()
 		want := ""
 		if token != "" {
 			want = "Bearer " + token
