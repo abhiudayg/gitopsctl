@@ -161,7 +161,7 @@ func SaveClusters(clusters *Clusters, filePath string) error {
 		return fmt.Errorf("failed to marshal clusters data: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := common.WriteFileAtomic(filePath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write clusters file %s: %w", filePath, err)
 	}
 	return nil

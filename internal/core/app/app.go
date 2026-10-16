@@ -177,7 +177,7 @@ func SaveApplications(apps *Applications, filePath string) error {
 		return fmt.Errorf("failed to marshal applications data: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := common.WriteFileAtomic(filePath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write applications file %s: %w", filePath, err)
 	}
 	return nil
