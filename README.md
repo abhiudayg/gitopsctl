@@ -104,4 +104,4 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), run t
 
 ## License
 
-Add a repository license file before publishing or packaging GitOpsCTL for external distribution.
+GitOpsCTL is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
