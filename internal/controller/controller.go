@@ -484,7 +484,7 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 	}
 
 	// Terminal error on initial sync (e.g. cluster missing) — stop looping.
-	if app.Status == "Error" {
+	if app.Status == "Error" && client == nil {
 		return
 	}
 
@@ -517,6 +517,12 @@ type k8sApplier interface {
 }
 
 func (c *Controller) performSync(ctx context.Context, logger *zap.Logger, application *app.Application, repoDir string, client k8sApplier, appConfigFile string, trigger string) {
+	c.apps.RLock()
+	if shared, ok := c.apps.Get(application.Name); ok {
+		application.ApprovedGitHash = shared.ApprovedGitHash
+	}
+	c.apps.RUnlock()
+
 	oldStatus := application.Status
 	oldHash := application.LastSyncedGitHash
 	c.emit(ctx, events.TypeAppSyncStarted, map[string]any{"app": application.Name, "trigger": trigger})
@@ -647,6 +653,11 @@ func (c *Controller) notify(application *app.Application, oldStatus, oldHash str
 }
 
 func (c *Controller) checkHealth(ctx context.Context, logger *zap.Logger, application *app.Application, client k8sApplier, appConfigFile string) {
+	switch application.Status {
+	case "Synced", "Healthy", "Progressing", "Degraded":
+	default:
+		return
+	}
 	if client == nil || len(application.AppliedResources) == 0 {
 		return
 	}

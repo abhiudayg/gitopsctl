@@ -178,3 +178,41 @@ func TestHandleAppCommand_SyncRequestsCoalesceWithoutBlocking(t *testing.T) {
 		t.Fatalf("expected requests to coalesce into one pending sync, got %d", len(rt.syncChan))
 	}
 }
+
+func TestPerformSync_PicksUpApprovalRecordedOnTheSharedApplication(t *testing.T) {
+	repo := createLocalRepo(t)
+	t.Cleanup(func() { _ = os.RemoveAll(repo) })
+	f := newSyncFixture(t, repo)
+	f.app.SyncPolicy = "manual"
+
+	local := *f.app
+	f.ctrl.performSync(context.Background(), zap.NewNop(), &local, f.workDir, f.applier, f.cfg, "initial")
+	if local.Status != "OutOfSync" || f.applies.Load() != 0 {
+		t.Fatalf("expected OutOfSync before approval, got %s (applies=%d)", local.Status, f.applies.Load())
+	}
+
+	f.ctrl.apps.Lock()
+	f.app.ApprovedGitHash = local.LatestGitHash
+	f.ctrl.apps.Unlock()
+	f.ctrl.performSync(context.Background(), zap.NewNop(), &local, f.workDir, f.applier, f.cfg, "manual")
+
+	if local.Status != "Synced" || f.applies.Load() != 1 {
+		t.Fatalf("approval on the shared app must reach the reconciler copy: %s (applies=%d)", local.Status, f.applies.Load())
+	}
+}
+
+func TestCheckHealth_DoesNotMaskSyncFailures(t *testing.T) {
+	ctrl := NewController(zap.NewNop(), app.NewApplications(), cluster.NewClusters())
+	healthy := &mockApplier{}
+
+	for _, status := range []string{"Error", "OutOfSync", "Pending"} {
+		a := &app.Application{
+			Name: "a1", Status: status, Message: "keep me",
+			AppliedResources: []app.ResourceMetadata{{Kind: "ConfigMap", Name: "cm"}},
+		}
+		ctrl.checkHealth(context.Background(), zap.NewNop(), a, healthy, "unused")
+		if a.Status != status || a.Message != "keep me" {
+			t.Errorf("health check overwrote %s status: now %s %q", status, a.Status, a.Message)
+		}
+	}
+}
