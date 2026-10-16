@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
-	"aeswibon.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
 	"go.uber.org/zap"
 )
 

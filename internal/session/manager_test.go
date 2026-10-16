@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"go.uber.org/zap"

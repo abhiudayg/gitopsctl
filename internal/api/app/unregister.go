@@ -3,8 +3,8 @@ package app
 import (
 	"net/http"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

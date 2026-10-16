@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
 	"sigs.k8s.io/yaml"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/spf13/cobra"
 )
 

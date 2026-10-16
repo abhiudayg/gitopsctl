@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"strings"
 
-	"aeswibon.com/github/gitopsctl/internal/api/sessions"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/api/sessions"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/labstack/echo/v4"
 )
 

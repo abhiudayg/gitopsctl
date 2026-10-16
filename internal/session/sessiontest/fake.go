@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
-	"aeswibon.com/github/gitopsctl/internal/session"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/session"
 )
 
 type Cluster struct {

@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
 )
 
 func TestConvertToResponse_MapsFields(t *testing.T) {

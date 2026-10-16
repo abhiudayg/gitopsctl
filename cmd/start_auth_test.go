@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/api"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/api"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
 	"go.uber.org/zap"
 )
 

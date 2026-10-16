@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"aeswibon.com/github/gitopsctl/internal/controller"
+	"abhiudayg.com/github/gitopsctl/internal/controller"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/cmd"
+	"abhiudayg.com/github/gitopsctl/cmd"
 )
 
 func TestRootCommand_IsInitialized(t *testing.T) {

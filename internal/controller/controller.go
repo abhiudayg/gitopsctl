@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/core/git"
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
-	"aeswibon.com/github/gitopsctl/internal/core/notifications"
-	"aeswibon.com/github/gitopsctl/internal/events"
-	"aeswibon.com/github/gitopsctl/internal/metrics"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/core/git"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/core/notifications"
+	"abhiudayg.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/metrics"
 	"go.uber.org/zap"
 )
 

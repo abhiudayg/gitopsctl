@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
 )
 
 func TestValidateUnregisterInput(t *testing.T) {

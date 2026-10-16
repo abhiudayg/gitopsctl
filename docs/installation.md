@@ -26,7 +26,7 @@ Use the archive that matches your platform, for example Darwin arm64 for Apple S
 ## Install With Go
 
 ```bash
-go install aeswibon.com/github/gitopsctl@latest
+go install abhiudayg.com/github/gitopsctl@latest
 ```
 
 Make sure your Go binary directory is on `PATH`:

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
 	"go.uber.org/zap"
 )
 

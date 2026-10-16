@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/api"
-	"aeswibon.com/github/gitopsctl/internal/controller"
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/events"
-	"aeswibon.com/github/gitopsctl/internal/session"
+	"abhiudayg.com/github/gitopsctl/internal/api"
+	"abhiudayg.com/github/gitopsctl/internal/controller"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/session"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

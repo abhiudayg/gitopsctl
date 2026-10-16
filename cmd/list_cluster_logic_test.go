@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/utils"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/utils"
 )
 
 func TestFilterClustersForList(t *testing.T) {

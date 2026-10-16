@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/policy"
-	"aeswibon.com/github/gitopsctl/internal/session"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/session"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

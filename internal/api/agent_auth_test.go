@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/controller"
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/events"
-	"aeswibon.com/github/gitopsctl/internal/session"
-	"aeswibon.com/github/gitopsctl/internal/session/sessiontest"
+	"abhiudayg.com/github/gitopsctl/internal/controller"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/session"
+	"abhiudayg.com/github/gitopsctl/internal/session/sessiontest"
 	"go.uber.org/zap"
 )
 

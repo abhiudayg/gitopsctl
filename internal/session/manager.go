@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/common"
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/common"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
 	"go.uber.org/zap"
 )
 

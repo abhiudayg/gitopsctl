@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"aeswibon.com/github/gitopsctl/internal/utils"
+	"abhiudayg.com/github/gitopsctl/internal/utils"
 	"github.com/spf13/cobra"
 )
 

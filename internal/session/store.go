@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"aeswibon.com/github/gitopsctl/internal/core/git"
+	"abhiudayg.com/github/gitopsctl/internal/core/git"
 	"go.uber.org/zap"
 )
 

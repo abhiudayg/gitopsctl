@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/controller"
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/controller"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
 	"go.uber.org/zap"
 )
 

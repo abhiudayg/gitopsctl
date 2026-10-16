@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/policy"
-	"aeswibon.com/github/gitopsctl/internal/session"
-	"aeswibon.com/github/gitopsctl/internal/session/sessiontest"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/session"
+	"abhiudayg.com/github/gitopsctl/internal/session/sessiontest"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
