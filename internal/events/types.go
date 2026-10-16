@@ -22,4 +22,5 @@ const (
 	TypeClusterHealthCheckRequested Type = "io.gitopsctl.cluster.health_check_requested"
 	TypeClusterHealthCompleted      Type = "io.gitopsctl.cluster.health_check_completed"
 	TypeAppStatusChanged            Type = "io.gitopsctl.app.status_changed"
+	TypeAPIAudit                    Type = "io.gitopsctl.api.audit"
 )
