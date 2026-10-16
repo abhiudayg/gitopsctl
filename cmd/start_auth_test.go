@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"aeswibon.com/github/gitopsctl/internal/api"
+	"aeswibon.com/github/gitopsctl/internal/core/cluster"
+	"go.uber.org/zap"
 )
 
 func TestResolveListenAddress(t *testing.T) {
@@ -69,5 +72,65 @@ func TestLoadAPITokens(t *testing.T) {
 	apiTokenFile = bad
 	if _, err := loadAPITokens(); err == nil {
 		t.Fatal("expected error for malformed token file")
+	}
+}
+
+func TestLoadAgentTokens(t *testing.T) {
+	origFile := apiTokenFile
+	t.Cleanup(func() { apiTokenFile = origFile })
+
+	apiTokenFile = ""
+	if agents, err := loadAgentTokens(); err != nil || len(agents) != 0 {
+		t.Fatalf("expected none, got %v (%v)", agents, err)
+	}
+
+	file := filepath.Join(t.TempDir(), "tokens")
+	if err := os.WriteFile(file, []byte("admin root\nagent bot-tok claude\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	apiTokenFile = file
+	agents, err := loadAgentTokens()
+	if err != nil || len(agents) != 1 || agents["bot-tok"] != "claude" {
+		t.Fatalf("unexpected agents %v (%v)", agents, err)
+	}
+
+	apiTokenFile = filepath.Join(t.TempDir(), "missing")
+	if _, err := loadAgentTokens(); err == nil {
+		t.Fatal("expected error for missing token file")
+	}
+	bad := filepath.Join(t.TempDir(), "bad")
+	if err := os.WriteFile(bad, []byte("agent only-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	apiTokenFile = bad
+	if _, err := loadAgentTokens(); err == nil {
+		t.Fatal("expected error for malformed agent line")
+	}
+}
+
+func TestNewSessionManager(t *testing.T) {
+	origAgents, origSessions, origLogger := agentsFile, sessionsFile, logger
+	t.Cleanup(func() { agentsFile, sessionsFile, logger = origAgents, origSessions, origLogger })
+	logger = zap.NewNop()
+
+	dir := t.TempDir()
+	agentsFile = filepath.Join(dir, "agents.yaml")
+	sessionsFile = filepath.Join(dir, "sessions.json")
+	doc := "policy:\n  allowed_kinds: [ConfigMap]\n  allowed_namespaces: ['agent-*']\nagents:\n  - id: bot\n    cluster: dev\n    repos: [x]\n    max_sessions: 1\n"
+	if err := os.WriteFile(agentsFile, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr, err := newSessionManager(cluster.NewClusters())
+	if err != nil || mgr == nil {
+		t.Fatalf("expected a manager, got %v", err)
+	}
+	if _, err := mgr.Create(context.Background(), "bot", 0); err == nil {
+		t.Fatal("an unregistered cluster must fail session creation")
+	}
+
+	agentsFile = filepath.Join(dir, "missing.yaml")
+	if _, err := newSessionManager(cluster.NewClusters()); err == nil {
+		t.Fatal("expected error for a missing agents file")
 	}
 }

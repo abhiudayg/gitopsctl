@@ -15,6 +15,7 @@ import (
 	"aeswibon.com/github/gitopsctl/internal/core/app"
 	"aeswibon.com/github/gitopsctl/internal/core/cluster"
 	"aeswibon.com/github/gitopsctl/internal/events"
+	"aeswibon.com/github/gitopsctl/internal/session"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -23,6 +24,8 @@ var (
 	apiAddress     string
 	apiTokenFile   string
 	apiCORSOrigins []string
+	agentsFile     string
+	sessionsFile   string
 )
 
 var startCmd = &cobra.Command{
@@ -91,9 +94,22 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 			logger.Warn("No API token configured; binding API to loopback only. Set --api-token or --api-token-file to listen on other interfaces.", zap.String("address", listenAddress))
 		}
 
+		agentTokens, err := loadAgentTokens()
+		if err != nil {
+			return err
+		}
+		serverOpts := []api.ServerOption{api.WithAPITokens(tokens), api.WithAgentTokens(agentTokens), api.WithCORSOrigins(apiCORSOrigins)}
+		var sessionManager *session.Manager
+		if agentsFile != "" {
+			sessionManager, err = newSessionManager(clusters)
+			if err != nil {
+				return err
+			}
+			serverOpts = append(serverOpts, api.WithSessions(sessionManager))
+		}
+
 		ctrl := controller.NewController(logger, apps, clusters, ctrlOpts...)
-		apiServer := api.NewServer(logger, apps, clusters, ctrl, streamSink, historySink,
-			api.WithAPITokens(tokens), api.WithCORSOrigins(apiCORSOrigins))
+		apiServer := api.NewServer(logger, apps, clusters, ctrl, streamSink, historySink, serverOpts...)
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -103,6 +119,12 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 				logger.Fatal("Failed to start controller", zap.Error(err))
 			}
 		}()
+
+		janitorCtx, stopJanitor := context.WithCancel(context.Background())
+		defer stopJanitor()
+		if sessionManager != nil {
+			go sessionManager.Run(janitorCtx, sessionReapInterval)
+		}
 
 		go func() {
 			if err := apiServer.Start(listenAddress); err != nil && err != http.ErrServerClosed {
@@ -120,6 +142,7 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 		if err := apiServer.Stop(timeoutCtx); err != nil {
 			logger.Error("API server shutdown error", zap.Error(err))
 		}
+		stopJanitor()
 		ctrl.Stop()
 
 		logger.Info("Controller stopped gracefully.")
@@ -130,6 +153,8 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 func init() {
 	startCmd.Flags().StringVarP(&apiAddress, "api-address", "a", ":8080", "Address for the API server to listen on (e.g., :8080, 0.0.0.0:8080)")
 	startCmd.Flags().StringVar(&apiTokenFile, "api-token-file", "", "File with one \"<scope> <token>\" per line (scopes: read, sync, admin) for API authentication")
+	startCmd.Flags().StringVar(&agentsFile, "agents-file", "", "YAML file with the agent policy and agent definitions; enables the /api/v1/sessions API")
+	startCmd.Flags().StringVar(&sessionsFile, "sessions-file", "configs/sessions.json", "File where agent sessions are persisted (used with --agents-file)")
 	startCmd.Flags().StringSliceVar(&apiCORSOrigins, "api-cors-origin", nil, "Browser origin allowed to call the API (repeatable); CORS is disabled by default")
 }
 
@@ -168,4 +193,39 @@ func resolveListenAddress(address string, authEnabled bool) (string, error) {
 		return address, nil
 	}
 	return net.JoinHostPort("127.0.0.1", port), nil
+}
+
+const sessionReapInterval = time.Minute
+
+func loadAgentTokens() (map[string]string, error) {
+	if apiTokenFile == "" {
+		return nil, nil
+	}
+	f, err := os.Open(apiTokenFile)
+	if err != nil {
+		return nil, fmt.Errorf("open api token file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	agentTokens, err := api.ParseAgentTokens(f)
+	if err != nil {
+		return nil, fmt.Errorf("parse api token file: %w", err)
+	}
+	return agentTokens, nil
+}
+
+func newSessionManager(clusters *cluster.Clusters) (*session.Manager, error) {
+	cfg, err := session.LoadConfig(agentsFile)
+	if err != nil {
+		return nil, err
+	}
+	clusterFor := func(name string) (session.Cluster, error) {
+		clusters.RLock()
+		defer clusters.RUnlock()
+		cl, ok := clusters.Get(name)
+		if !ok {
+			return nil, fmt.Errorf("cluster %q is not registered", name)
+		}
+		return session.NewK8sCluster(logger, cl.KubeconfigPath, cfg.Policy), nil
+	}
+	return session.NewManager(logger, cfg, clusterFor, sessionsFile)
 }

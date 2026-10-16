@@ -9,10 +9,12 @@ import (
 
 	"aeswibon.com/github/gitopsctl/internal/api/app"
 	"aeswibon.com/github/gitopsctl/internal/api/cluster"
+	sessionapi "aeswibon.com/github/gitopsctl/internal/api/sessions"
 	"aeswibon.com/github/gitopsctl/internal/controller"
 	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
 	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
 	"aeswibon.com/github/gitopsctl/internal/events"
+	"aeswibon.com/github/gitopsctl/internal/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -38,6 +40,10 @@ type Server struct {
 	history *events.HistorySink
 	// tokens maps accepted bearer tokens to their scope; empty disables authentication.
 	tokens map[string]Scope
+	// agentTokens maps agent bearer tokens to the agent id they act as; they can only use /sessions.
+	agentTokens map[string]string
+	// sessions manages agent sessions; nil disables the /sessions API.
+	sessions *session.Manager
 	// corsOrigins lists allowed browser origins; empty disables CORS.
 	corsOrigins []string
 }
@@ -48,6 +54,16 @@ type ServerOption func(*Server)
 // WithAPITokens enables bearer-token authentication on /api/v1.
 func WithAPITokens(tokens map[string]Scope) ServerOption {
 	return func(s *Server) { s.tokens = tokens }
+}
+
+// WithAgentTokens registers bearer tokens that act as the given agents on /sessions only.
+func WithAgentTokens(tokens map[string]string) ServerOption {
+	return func(s *Server) { s.agentTokens = tokens }
+}
+
+// WithSessions enables the /sessions API.
+func WithSessions(m *session.Manager) ServerOption {
+	return func(s *Server) { s.sessions = m }
 }
 
 // WithCORSOrigins allows the given browser origins to call the API.
@@ -100,8 +116,8 @@ func NewServer(logger *zap.Logger, apps *appcore.Applications, clusters *cluster
 // It sets up the routes for managing applications, health checks, and other API functionalities.
 func (s *Server) registerRoutes() {
 	v1 := s.e.Group("/api/v1")
-	if len(s.tokens) > 0 {
-		v1.Use(authMiddleware(s.tokens, s.audit))
+	if len(s.tokens) > 0 || len(s.agentTokens) > 0 {
+		v1.Use(authMiddleware(s.tokens, s.agentTokens, s.audit))
 	}
 
 	appHandler := app.NewHandler(s.logger, s.apps, s.clusters, s.controller)
@@ -109,6 +125,9 @@ func (s *Server) registerRoutes() {
 
 	app.RegisterRoutes(v1, appHandler)
 	cluster.RegisterRoutes(v1, clusterHandler)
+	if s.sessions != nil {
+		sessionapi.RegisterRoutes(v1, sessionapi.NewHandler(s.logger, s.sessions))
+	}
 	if s.stream != nil {
 		v1.GET("/events", s.StreamEvents)
 		v1.GET("/events/history", s.GetEventHistory)

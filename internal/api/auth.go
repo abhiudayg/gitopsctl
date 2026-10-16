@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"aeswibon.com/github/gitopsctl/internal/api/sessions"
 	"aeswibon.com/github/gitopsctl/internal/events"
 	"github.com/labstack/echo/v4"
 )
@@ -37,8 +38,21 @@ func ParseScope(name string) (Scope, error) {
 	return scope, nil
 }
 
+const agentKeyword = "agent"
+
 func ParseTokens(r io.Reader) (map[string]Scope, error) {
+	tokens, _, err := parseTokenLines(r)
+	return tokens, err
+}
+
+func ParseAgentTokens(r io.Reader) (map[string]string, error) {
+	_, agents, err := parseTokenLines(r)
+	return agents, err
+}
+
+func parseTokenLines(r io.Reader) (map[string]Scope, map[string]string, error) {
 	tokens := map[string]Scope{}
+	agents := map[string]string{}
 	scanner := bufio.NewScanner(r)
 	for lineNo := 1; scanner.Scan(); lineNo++ {
 		line := strings.TrimSpace(scanner.Text())
@@ -46,16 +60,32 @@ func ParseTokens(r io.Reader) (map[string]Scope, error) {
 			continue
 		}
 		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == agentKeyword {
+			if len(fields) != 3 {
+				return nil, nil, fmt.Errorf("line %d: want \"agent <token> <agent-id>\"", lineNo)
+			}
+			agents[fields[1]] = fields[2]
+			continue
+		}
 		if len(fields) != 2 {
-			return nil, fmt.Errorf("line %d: want \"<scope> <token>\"", lineNo)
+			return nil, nil, fmt.Errorf("line %d: want \"<scope> <token>\"", lineNo)
 		}
 		scope, err := ParseScope(fields[0])
 		if err != nil {
-			return nil, fmt.Errorf("line %d: %w", lineNo, err)
+			return nil, nil, fmt.Errorf("line %d: %w", lineNo, err)
 		}
 		tokens[fields[1]] = scope
 	}
-	return tokens, scanner.Err()
+	for token := range agents {
+		if _, clash := tokens[token]; clash {
+			return nil, nil, fmt.Errorf("a token is used for both an agent and a scope")
+		}
+	}
+	return tokens, agents, scanner.Err()
+}
+
+func isSessionPath(path string) bool {
+	return path == "/api/v1/sessions" || strings.HasPrefix(path, "/api/v1/sessions/")
 }
 
 func requiredScope(method, path string) Scope {
@@ -74,18 +104,23 @@ func tokenID(token string) string {
 	return hex.EncodeToString(sum[:4])
 }
 
-func authMiddleware(tokens map[string]Scope, audit func(events.Type, map[string]any)) echo.MiddlewareFunc {
+func authMiddleware(tokens map[string]Scope, agents map[string]string, audit func(events.Type, map[string]any)) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
 			presented, found := strings.CutPrefix(req.Header.Get(echo.HeaderAuthorization), "Bearer ")
 
 			var scope Scope
-			var matched string
+			var matched, agentID string
 			if found {
 				for token, tokenScope := range tokens {
 					if subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1 {
 						scope, matched = tokenScope, token
+					}
+				}
+				for token, id := range agents {
+					if subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1 {
+						scope, matched, agentID = 0, token, id
 					}
 				}
 			}
@@ -93,9 +128,14 @@ func authMiddleware(tokens map[string]Scope, audit func(events.Type, map[string]
 				c.Response().Header().Set(echo.HeaderWWWAuthenticate, "Bearer")
 				return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 			}
-			if scope < requiredScope(req.Method, req.URL.Path) {
+			onSessions := isSessionPath(req.URL.Path)
+			switch {
+			case agentID != "" && !onSessions,
+				agentID == "" && onSessions && scope < ScopeAdmin,
+				agentID == "" && !onSessions && scope < requiredScope(req.Method, req.URL.Path):
 				return echo.NewHTTPError(http.StatusForbidden, "insufficient scope")
 			}
+			c.Set(sessions.AgentKey, agentID)
 
 			err := next(c)
 			status := c.Response().Status
@@ -103,12 +143,16 @@ func authMiddleware(tokens map[string]Scope, audit func(events.Type, map[string]
 				status = httpErr.Code
 			}
 			if req.Method != http.MethodGet && req.Method != http.MethodHead && audit != nil {
-				audit(events.TypeAPIAudit, map[string]any{
+				fields := map[string]any{
 					"token_id": tokenID(matched),
 					"method":   req.Method,
 					"path":     req.URL.Path,
 					"status":   status,
-				})
+				}
+				if agentID != "" {
+					fields["agent"] = agentID
+				}
+				audit(events.TypeAPIAudit, fields)
 			}
 			return err
 		}
