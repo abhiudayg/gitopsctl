@@ -233,3 +233,12 @@ func TestViolationError(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestNamespaceAllowed(t *testing.T) {
+	p := testPolicy(t)
+	for ns, want := range map[string]bool{"agent-1": true, "agent-admin": false, "kube-system": false, "": false} {
+		if got := p.NamespaceAllowed(ns); got != want {
+			t.Errorf("NamespaceAllowed(%q) = %v, want %v", ns, got, want)
+		}
+	}
+}

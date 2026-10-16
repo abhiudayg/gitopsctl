@@ -49,11 +49,11 @@ const (
 
 // ResourceMetadata stores the basic identity of a Kubernetes resource.
 type ResourceMetadata struct {
-	Group     string
-	Version   string
-	Kind      string
-	Namespace string
-	Name      string
+	Group     string `json:"group"`
+	Version   string `json:"version"`
+	Kind      string `json:"kind"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
 }
 
 // ClientSet holds Kubernetes clients for dynamic interactions.

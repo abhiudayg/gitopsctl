@@ -191,3 +191,7 @@ func identify(obj *unstructured.Unstructured) string {
 	}
 	return fmt.Sprintf("%s %s", obj.GetKind(), obj.GetName())
 }
+
+func (p *Policy) NamespaceAllowed(ns string) bool {
+	return p.namespaceViolation(ns, Scope{}) == ""
+}
