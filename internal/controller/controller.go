@@ -69,6 +69,7 @@ type Controller struct {
 	wg                 sync.WaitGroup
 	emitter            events.Emitter
 	appConfigPath      string
+	plannerFactory     PlannerFactory
 	stopOnce           sync.Once
 }
 
@@ -91,6 +92,7 @@ func NewController(logger *zap.Logger, apps *app.Applications, clusters *cluster
 		appCommandChan:     make(chan AppCommand, 50),
 		clusterCommandChan: make(chan ClusterCommand, 50),
 		runningApps:        make(map[string]*appRuntime),
+		plannerFactory:     defaultPlannerFactory,
 	}
 	for _, o := range opts {
 		o(ctrl)
