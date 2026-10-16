@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,7 +20,9 @@ import (
 )
 
 var (
-	apiAddress string
+	apiAddress     string
+	apiTokenFile   string
+	apiCORSOrigins []string
 )
 
 var startCmd = &cobra.Command{
@@ -76,8 +79,21 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 			zap.Bool("jsonl_sink", eventsFile != ""),
 			zap.Bool("webhook_sink", eventsWebhookURL != ""))
 
+		tokens, err := loadAPITokens()
+		if err != nil {
+			return err
+		}
+		listenAddress, err := resolveListenAddress(apiAddress, len(tokens) > 0)
+		if err != nil {
+			return err
+		}
+		if listenAddress != apiAddress {
+			logger.Warn("No API token configured; binding API to loopback only. Set --api-token or --api-token-file to listen on other interfaces.", zap.String("address", listenAddress))
+		}
+
 		ctrl := controller.NewController(logger, apps, clusters, ctrlOpts...)
-		apiServer := api.NewServer(logger, apps, clusters, ctrl, streamSink, historySink)
+		apiServer := api.NewServer(logger, apps, clusters, ctrl, streamSink, historySink,
+			api.WithAPITokens(tokens), api.WithCORSOrigins(apiCORSOrigins))
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -89,7 +105,7 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 		}()
 
 		go func() {
-			if err := apiServer.Start(apiAddress); err != nil && err != http.ErrServerClosed {
+			if err := apiServer.Start(listenAddress); err != nil && err != http.ErrServerClosed {
 				logger.Fatal("Failed to start API server", zap.Error(err))
 			}
 		}()
@@ -113,4 +129,43 @@ Phase 2: optionally emit integration events (JSONL file and/or HTTP webhook) for
 
 func init() {
 	startCmd.Flags().StringVarP(&apiAddress, "api-address", "a", ":8080", "Address for the API server to listen on (e.g., :8080, 0.0.0.0:8080)")
+	startCmd.Flags().StringVar(&apiTokenFile, "api-token-file", "", "File with one \"<scope> <token>\" per line (scopes: read, sync, admin) for API authentication")
+	startCmd.Flags().StringSliceVar(&apiCORSOrigins, "api-cors-origin", nil, "Browser origin allowed to call the API (repeatable); CORS is disabled by default")
+}
+
+func loadAPITokens() (map[string]api.Scope, error) {
+	tokens := map[string]api.Scope{}
+	if apiToken != "" {
+		tokens[apiToken] = api.ScopeAdmin
+	}
+	if apiTokenFile == "" {
+		return tokens, nil
+	}
+	f, err := os.Open(apiTokenFile)
+	if err != nil {
+		return nil, fmt.Errorf("open api token file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	fileTokens, err := api.ParseTokens(f)
+	if err != nil {
+		return nil, fmt.Errorf("parse api token file: %w", err)
+	}
+	for token, scope := range fileTokens {
+		tokens[token] = scope
+	}
+	return tokens, nil
+}
+
+func resolveListenAddress(address string, authEnabled bool) (string, error) {
+	if authEnabled {
+		return address, nil
+	}
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", fmt.Errorf("invalid --api-address %q: %w", address, err)
+	}
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		return address, nil
+	}
+	return net.JoinHostPort("127.0.0.1", port), nil
 }
