@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"aeswibon.com/github/gitopsctl/internal/core/git"
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/core/git"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
 	"go.uber.org/zap"
 )
 

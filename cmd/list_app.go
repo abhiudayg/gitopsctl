@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/utils"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/utils"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

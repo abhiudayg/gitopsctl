@@ -915,6 +915,398 @@
       "if_failing": "A crash mid-write must never leave truncated JSON."
     },
     {
+      "id": "S-AGENT-01",
+      "kind": "success",
+      "area": "agent",
+      "severity": "critical",
+      "title": "An agent can create a session, deploy into it and tear it down",
+      "given": "A controller started with --agents-file and an agent token",
+      "when": "The agent creates a session, deploys a git path and deletes the session",
+      "then": "A labelled namespace with a quota exists; manifests are applied inside it and labelled as owned by the session; deletion removes the namespace and its contents",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_AGENT_01_SessionLifecycle"
+            ]
+          }
+        ]
+      },
+      "if_failing": "The core agent workflow is broken. Check internal/session and the /sessions handlers before anything else."
+    },
+    {
+      "id": "S-AGENT-02",
+      "kind": "success",
+      "area": "agent",
+      "severity": "high",
+      "title": "Redeploying a session prunes resources removed from git",
+      "given": "A session with two deployed objects",
+      "when": "One object is removed from git and the session is redeployed",
+      "then": "The removed object is deleted, the other is updated",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_AGENT_02_RedeployPrunesDroppedResources"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Session.Resources is not handed to Apply as Previous, or Prune ownership labels no longer match."
+    },
+    {
+      "id": "S-AGENT-03",
+      "kind": "success",
+      "area": "agent",
+      "severity": "high",
+      "title": "Sessions survive a controller restart",
+      "given": "An active, deployed session",
+      "when": "The controller is stopped and started again",
+      "then": "The session is still active with its resources and can be redeployed; its namespace is untouched",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_AGENT_03_SessionsSurviveRestart"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Session persistence or startup reconciliation is deleting or forgetting live sessions."
+    },
+    {
+      "id": "S-AGENT-04",
+      "kind": "success",
+      "area": "agent",
+      "severity": "high",
+      "title": "Expired sessions are removed, live ones are kept",
+      "given": "One expired and one live session and a stopped controller",
+      "when": "The controller starts",
+      "then": "The expired session's namespace and record are removed; the live session is kept",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_S_AGENT_04_ExpiredSessionsAreRemovedAfterRestart"
+            ]
+          }
+        ]
+      },
+      "if_failing": "The janitor does not reap on startup or compares expiry incorrectly."
+    },
+    {
+      "id": "S-POLICY-01",
+      "kind": "success",
+      "area": "policy",
+      "severity": "high",
+      "title": "Compliant manifests pass the policy and land in the session namespace",
+      "given": "A policy and a compliant Deployment or ConfigMap",
+      "when": "The manifests are checked and applied",
+      "then": "No violations; unscoped objects default to the session namespace",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./internal/policy",
+            "tests": [
+              "TestCheck_AllowsCompliantDeployment",
+              "TestCheck_PodLevelNonRootCoversContainers",
+              "TestCheck_DockerHubShorthandMatchesDockerIO",
+              "TestNamespaceAllowed"
+            ]
+          },
+          {
+            "package": "./internal/core/k8s",
+            "tests": [
+              "TestApplyManifests_PolicyAllowsCompliantAndDefaultsToSessionNamespace",
+              "TestApplyManifests_WithoutPolicyIsUnchanged",
+              "TestWithPolicy_DoesNotMutateOriginal"
+            ]
+          }
+        ]
+      },
+      "if_failing": "The policy is rejecting safe manifests or changing behaviour for clients without a policy."
+    },
+    {
+      "id": "F-POLICY-01",
+      "kind": "failure",
+      "area": "policy",
+      "severity": "critical",
+      "title": "The policy rejects every unsafe manifest class and fails closed",
+      "given": "Manifests with privileged containers, root users, host access, foreign images, RBAC, cluster-scoped objects, wrong namespaces, spoofed labels, unknown kinds or malformed YAML; and invalid policy files",
+      "when": "They are checked, applied or planned",
+      "then": "Each is rejected with a named rule; nothing is applied, not even compliant objects in the same set; invalid policy files fail to load",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./internal/policy",
+            "tests": [
+              "TestCheck_Violations",
+              "TestCheck_PodSpecRules",
+              "TestCheck_CronJobAndPod",
+              "TestCheck_MissingPodSpec",
+              "TestCheck_MaxObjects",
+              "TestParse_FailsClosed",
+              "TestLoad"
+            ]
+          },
+          {
+            "package": "./internal/core/k8s",
+            "tests": [
+              "TestApplyManifests_PolicyBlocksWholeSetOnViolation",
+              "TestApplyManifests_PolicyBlocksClusterScopedAndUnknownKinds",
+              "TestPlan_PolicyViolationReturnsNoItems"
+            ]
+          }
+        ]
+      },
+      "if_failing": "A rule was weakened or bypassed. Fix the policy engine; never loosen the scenario."
+    },
+    {
+      "id": "F-AGENT-01",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "critical",
+      "title": "Unsafe workloads are rejected end to end with 422 and never reach the cluster",
+      "given": "A session and a repository containing a privileged, root, foreign-registry, capability-adding or over-replicated Deployment next to a compliant object",
+      "when": "The agent deploys",
+      "then": "422 with the violated rule; neither the Deployment nor the compliant object is created",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_01_PolicyRejectsUnsafeWorkloads"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Policy is not enforced on the session deploy path, or apply is no longer all-or-nothing."
+    },
+    {
+      "id": "F-AGENT-02",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "critical",
+      "title": "Cluster-scoped, RBAC, other-namespace and label-spoofing manifests are blocked",
+      "given": "A session and a repository with a ClusterRoleBinding, Namespace, kube-system object, reserved label or disallowed kind",
+      "when": "The agent deploys",
+      "then": "422 and zero writes to the cluster",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_02_PolicyBlocksClusterScopedAndOutOfScopeObjects"
+            ]
+          }
+        ]
+      },
+      "if_failing": "An escape from the session namespace exists. Treat as a security incident."
+    },
+    {
+      "id": "F-AGENT-03",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "critical",
+      "title": "Agent tokens are confined to their own sessions",
+      "given": "Two agents plus read, sync and admin tokens",
+      "when": "They call session and non-session endpoints, and one agent targets the other's session",
+      "then": "Cross-agent access is 404; agent tokens get 403 outside /sessions; read and sync tokens get 403 on /sessions; missing or wrong tokens get 401; impersonation is 403",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_03_AgentTokensAreConfinedAndIsolated"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Authorisation or ownership lookup is leaking across agents."
+    },
+    {
+      "id": "F-AGENT-04",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "critical",
+      "title": "Repository allowlist, path and ref validation hold",
+      "given": "A session and hostile deploy requests",
+      "when": "The repo is not allowlisted or is a local path, the path escapes the repo or is absolute, the ref looks like a git option or contains .., or a manifest is a symlink",
+      "then": "403 or 400 with zero cluster writes",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_04_RepositoryPathAndRefAreConstrained"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Input validation in session.Deploy regressed; this allows reading host files or arbitrary clones."
+    },
+    {
+      "id": "F-AGENT-05",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "medium",
+      "title": "Session limits and TTL bounds are enforced",
+      "given": "An agent at its session limit",
+      "when": "It creates another session, or asks for an excessive or malformed ttl, or an admin names an unknown agent",
+      "then": "429, 400, 400 and 403 respectively, and no namespace is created",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_05_LimitsAreEnforced"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Limits are checked after provisioning or not at all."
+    },
+    {
+      "id": "F-AGENT-06",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "critical",
+      "title": "Cleanup deletes orphaned session namespaces but never foreign ones",
+      "given": "An orphan with session labels and namespaces that are unlabelled, partly labelled or belong to other teams",
+      "when": "The controller starts",
+      "then": "Only the fully labelled orphan is removed",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_06_CleanupNeverTouchesForeignNamespaces"
+            ]
+          },
+          {
+            "package": "./internal/core/k8s",
+            "tests": [
+              "TestDeleteSessionNamespace",
+              "TestEnsureSessionNamespace_RefusesForeignNamespace",
+              "TestSessionNamespaces_ListsOnlyManagedSessions"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Namespace deletion no longer verifies both ownership labels. This can delete other teams' workloads."
+    },
+    {
+      "id": "F-AGENT-07",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "high",
+      "title": "An interrupted teardown completes after the outage",
+      "given": "A cluster that rejects deletes",
+      "when": "The agent deletes its session and the controller later restarts with the cluster healthy",
+      "then": "First 202 with state tearing-down and deploys rejected with 409; after restart the namespace and record are gone",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_07_InterruptedTeardownCompletesAfterOutage"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Teardown state is not persisted or the janitor does not retry."
+    },
+    {
+      "id": "F-AGENT-08",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "medium",
+      "title": "A failed apply leaves the session usable and hides internals",
+      "given": "A cluster that fails one create",
+      "when": "The agent deploys, then retries after recovery",
+      "then": "502 without internal detail and nothing recorded; the retry succeeds",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_08_FailedApplyLeavesSessionUsable"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Deploy records partial state or leaks cluster error text to agents."
+    },
+    {
+      "id": "F-AGENT-09",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "high",
+      "title": "Invalid agent configuration prevents startup",
+      "given": "An agents file with unknown fields, no policy, namespaces the policy forbids, an allowed RBAC kind, or empty content",
+      "when": "The controller starts",
+      "then": "It exits non-zero",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./.verify/integration",
+            "tests": [
+              "TestScenario_F_AGENT_09_InvalidAgentConfigurationRefusesToStart"
+            ]
+          }
+        ]
+      },
+      "if_failing": "Configuration is being accepted leniently. It must fail closed."
+    },
+    {
+      "id": "F-SESSION-01",
+      "kind": "failure",
+      "area": "agent",
+      "severity": "high",
+      "title": "Concurrent requests cannot exceed limits or overlap on one session",
+      "given": "Many concurrent creates and deploys",
+      "when": "They race",
+      "then": "Exactly max_sessions are created; deploys on one session never overlap; tearing-down sessions reject deploys; expired or foreign sessions are not found",
+      "verify": {
+        "type": "go-test",
+        "targets": [
+          {
+            "package": "./internal/session",
+            "tests": [
+              "TestCreate_ConcurrentRequestsRespectLimit",
+              "TestDeploy_SerialisesConcurrentRequestsForOneSession",
+              "TestSessions_AreIsolatedBetweenAgents",
+              "TestDeploy_Rejections",
+              "TestDeploy_RequiresActiveUnexpiredSession",
+              "TestTeardown_FailureIsRetriedByReap",
+              "TestRestart_RecoversSessionsAndCleansInterruptedOnes"
+            ]
+          }
+        ],
+        "race": true
+      },
+      "if_failing": "A lock or ownership check in internal/session regressed."
+    },
+    {
       "id": "E-KIND-01",
       "kind": "success",
       "area": "e2e",

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"go.uber.org/zap"
 )
 

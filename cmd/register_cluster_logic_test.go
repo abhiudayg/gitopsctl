@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
 	"go.uber.org/zap"
 )
 

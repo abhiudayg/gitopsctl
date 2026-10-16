@@ -3,7 +3,7 @@ package cmd
 import (
 	"log"
 
-	"aeswibon.com/github/gitopsctl/internal/tui"
+	"abhiudayg.com/github/gitopsctl/internal/tui"
 	"github.com/spf13/cobra"
 )
 

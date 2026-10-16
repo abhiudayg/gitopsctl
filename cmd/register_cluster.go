@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/common"
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/common"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"k8s.io/client-go/tools/clientcmd"

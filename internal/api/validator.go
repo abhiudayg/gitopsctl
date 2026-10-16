@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"aeswibon.com/github/gitopsctl/internal/common"
+	"abhiudayg.com/github/gitopsctl/internal/common"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )

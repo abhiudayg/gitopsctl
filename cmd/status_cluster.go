@@ -5,8 +5,8 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/utils"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/utils"
 	"github.com/spf13/cobra"
 )
 

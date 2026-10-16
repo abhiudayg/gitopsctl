@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

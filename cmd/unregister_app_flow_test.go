@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
 	"go.uber.org/zap"
 )
 

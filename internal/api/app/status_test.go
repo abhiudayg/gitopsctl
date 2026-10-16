@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
 )
 
 func TestGet_Returns404WhenMissing(t *testing.T) {

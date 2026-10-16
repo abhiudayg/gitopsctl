@@ -37,8 +37,9 @@ Flags:
 |------|---------|-------------|
 | `--api-address`, `-a` | `:8080` | Listen address for REST API, SSE, and metrics. Without an API token the server binds to loopback only. |
 | `--api-token` | `$GITOPSCTL_API_TOKEN` | Admin bearer token required on `/api/v1`. `/health` and `/metrics` stay open. |
-| `--api-token-file` | empty | File with one `<scope> <token>` per line. `read` allows GET, `sync` adds `sync-app`/`approve-app`/`check-cluster`, `admin` allows everything. |
+| `--api-token-file` | empty | File with one `<scope> <token>` per line. `read` allows GET, `sync` adds `sync-app`/`approve-app`/`check-cluster`, `admin` allows everything. `agent <token> <agent-id>` lines create tokens confined to /sessions. |
 | `--api-cors-origin` | none | Allowed browser origin (repeatable). CORS is off by default. |
+| `--agents-file` | empty | Enables agent sessions; see [Agent sessions](features/agent-sessions.md). |
 
 Mutating API calls emit an `io.gitopsctl.api.audit` event with a non-secret token id, method, path, and status. API-backed commands and the dashboard send `--api-token` (or `$GITOPSCTL_API_TOKEN`) automatically.
 

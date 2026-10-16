@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
