@@ -32,6 +32,7 @@ type Application struct {
 	Message             string             `json:"message,omitempty"`
 	ConsecutiveFailures int                `json:"consecutive_failures,omitempty"`
 	SyncPolicy          string             `json:"sync_policy,omitempty"`
+	Prune               bool               `json:"prune,omitempty"`
 	ApprovedGitHash     string             `json:"approved_git_hash,omitempty"`
 	LatestGitHash       string             `json:"latest_git_hash,omitempty"`
 	WebhookURL          string             `json:"webhook_url,omitempty"`

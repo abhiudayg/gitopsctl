@@ -24,6 +24,7 @@ var (
 	dryRunApp     bool   // Preview changes without applying them
 	forceApp      bool   // Force overwrite existing application
 	syncPolicy    string // Synchronization policy (auto or manual)
+	prune         bool
 	webhookURL    string // Webhook URL for notifications
 	webhookSecret string // Webhook secret for signing
 )
@@ -38,6 +39,7 @@ type registrationConfig struct {
 	interval        string
 	pollingInterval time.Duration
 	syncPolicy      string
+	prune           bool
 	webhookURL      string
 	webhookSecret   string
 }
@@ -160,6 +162,7 @@ func validateAndNormalizeInput() (*registrationConfig, error) {
 	if config.syncPolicy != "auto" && config.syncPolicy != "manual" {
 		return nil, fmt.Errorf("invalid sync policy: %s (must be 'auto' or 'manual')", config.syncPolicy)
 	}
+	config.prune = prune
 	config.webhookURL = strings.TrimSpace(webhookURL)
 	config.webhookSecret = strings.TrimSpace(webhookSecret)
 
@@ -224,6 +227,7 @@ func createApplication(config *registrationConfig) *app.Application {
 		Message:             "Application registered, awaiting first sync",
 		ConsecutiveFailures: 0,
 		SyncPolicy:          config.syncPolicy,
+		Prune:               config.prune,
 		WebhookURL:          config.webhookURL,
 		WebhookSecret:       config.webhookSecret,
 	}
@@ -245,6 +249,7 @@ func displayDryRunSummary(newApp *app.Application, isUpdate bool) error {
 	fmt.Printf("  Cluster:        %s\n", newApp.ClusterName)
 	fmt.Printf("  Poll Interval:  %s\n", newApp.Interval)
 	fmt.Printf("  Sync Policy:    %s\n", newApp.SyncPolicy)
+	fmt.Printf("  Prune:          %t\n", newApp.Prune)
 	fmt.Printf("  Status:         %s\n", newApp.Status)
 
 	if isUpdate {
@@ -283,6 +288,7 @@ func saveAndConfirmApplication(apps *app.Applications, newApp *app.Application, 
 	fmt.Printf("  Target Cluster: %s\n", newApp.ClusterName)
 	fmt.Printf("  Poll Interval:  %s\n", newApp.Interval)
 	fmt.Printf("  Sync Policy:    %s\n", newApp.SyncPolicy)
+	fmt.Printf("  Prune:          %t\n", newApp.Prune)
 	fmt.Printf("  Status:         %s\n", newApp.Status)
 
 	fmt.Printf("\nNext steps:\n")
@@ -331,6 +337,8 @@ func init() {
 		"Polling interval (min: 10s, max: 24h)")
 	registerCmd.Flags().StringVar(&syncPolicy, "sync-policy", "auto",
 		"Synchronization policy (auto or manual)")
+	registerCmd.Flags().BoolVar(&prune, "prune", false,
+		"Delete resources owned by this app that were removed from Git")
 	registerCmd.Flags().StringVar(&webhookURL, "webhook-url", "",
 		"Webhook URL for sync notifications")
 	registerCmd.Flags().StringVar(&webhookSecret, "webhook-secret", "",
