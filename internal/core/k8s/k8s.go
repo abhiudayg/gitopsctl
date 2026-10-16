@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,6 +39,11 @@ const (
 	DefaultQPS = 100
 	// DefaultBurst is the default burst for client-go
 	DefaultBurst = 100
+
+	LabelManagedBy = "app.kubernetes.io/managed-by"
+	LabelApp       = "gitopsctl.io/app"
+	LabelCluster   = "gitopsctl.io/cluster"
+	ManagerName    = "gitopsctl"
 )
 
 // ResourceMetadata stores the basic identity of a Kubernetes resource.
@@ -317,8 +323,26 @@ func (cs *ClientSet) applyYAMLData(ctx context.Context, data []byte, sourceName,
 			dr = cs.dynamicClient.Resource(mapping.Resource)
 		}
 
-		// Try to get the resource
+		labels := unstructuredObj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[LabelManagedBy] = ManagerName
+		labels[LabelApp] = appName
+		labels[LabelCluster] = clusterName
+		unstructuredObj.SetLabels(labels)
+
 		_, getErr := dr.Get(ctx, unstructuredObj.GetName(), metav1.GetOptions{})
+		if getErr != nil && !apierrors.IsNotFound(getErr) {
+			metrics.K8sApplyTotal.WithLabelValues(appName, clusterName, gvk.Kind, "failure").Inc()
+			cs.logger.Error("Failed to get resource",
+				zap.String("kind", gvk.Kind),
+				zap.String("name", unstructuredObj.GetName()),
+				zap.String("namespace", unstructuredObj.GetNamespace()),
+				zap.Error(getErr))
+			applyErrors = append(applyErrors, fmt.Errorf("failed to get %s %s/%s from %s: %w", gvk.Kind, unstructuredObj.GetNamespace(), unstructuredObj.GetName(), sourceName, getErr))
+			continue
+		}
 
 		if getErr != nil {
 			// Resource does not exist, create it
