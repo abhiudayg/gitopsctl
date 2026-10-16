@@ -21,11 +21,19 @@ import (
 type mockApplier struct {
 	applyFn  func(ctx context.Context, manifestsDir, appName, clusterName string) ([]k8s.ResourceMetadata, []error)
 	healthFn func(ctx context.Context, r k8s.ResourceMetadata) (string, string, error)
+	pruneFn  func(ctx context.Context, appName string, previous, current []k8s.ResourceMetadata, maxDeletions int) ([]k8s.ResourceMetadata, error)
 }
 
 func (m *mockApplier) ApplyManifests(ctx context.Context, manifestsDir, appName, clusterName string) ([]k8s.ResourceMetadata, []error) {
 	if m.applyFn != nil {
 		return m.applyFn(ctx, manifestsDir, appName, clusterName)
+	}
+	return nil, nil
+}
+
+func (m *mockApplier) Prune(ctx context.Context, appName string, previous, current []k8s.ResourceMetadata, maxDeletions int) ([]k8s.ResourceMetadata, error) {
+	if m.pruneFn != nil {
+		return m.pruneFn(ctx, appName, previous, current, maxDeletions)
 	}
 	return nil, nil
 }

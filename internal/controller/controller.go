@@ -511,6 +511,7 @@ func (c *Controller) reconcileApp(appCtx context.Context, app *app.Application, 
 type k8sApplier interface {
 	ApplyManifests(ctx context.Context, manifestsDir string, appName, clusterName string) ([]k8s.ResourceMetadata, []error)
 	GetResourceHealth(ctx context.Context, r k8s.ResourceMetadata) (string, string, error)
+	Prune(ctx context.Context, appName string, previous, current []k8s.ResourceMetadata, maxDeletions int) ([]k8s.ResourceMetadata, error)
 }
 
 func (c *Controller) performSync(ctx context.Context, logger *zap.Logger, application *app.Application, repoDir string, client k8sApplier, appConfigFile string, trigger string) {
@@ -588,21 +589,39 @@ func (c *Controller) performSync(ctx context.Context, logger *zap.Logger, applic
 		application.Message = fmt.Sprintf("Synced to %s", currentHash)
 		application.ConsecutiveFailures = 0
 
-		// Update tracked resources
-		application.AppliedResources = make([]app.ResourceMetadata, 0, len(applied))
-		for _, r := range applied {
-			application.AppliedResources = append(application.AppliedResources, app.ResourceMetadata{
-				Group:     r.Group,
-				Version:   r.Version,
-				Kind:      r.Kind,
-				Namespace: r.Namespace,
-				Name:      r.Name,
-			})
+		previousResources := application.AppliedResources
+		application.AppliedResources = toAppResources(applied)
+
+		if application.Prune {
+			retained, pruneErr := client.Prune(ctx, application.Name, toK8sResources(previousResources), applied, k8s.DefaultMaxPrune)
+			application.AppliedResources = append(application.AppliedResources, toAppResources(retained)...)
+			if pruneErr != nil {
+				application.LastSyncedGitHash = oldHash
+				application.Status = "Error"
+				application.Message = fmt.Sprintf("Prune error: %v", pruneErr)
+				application.ConsecutiveFailures++
+			}
 		}
 	}
 
 	c.notify(application, oldStatus, oldHash)
 	c.saveAppStatus(application, appConfigFile, true)
+}
+
+func toAppResources(in []k8s.ResourceMetadata) []app.ResourceMetadata {
+	out := make([]app.ResourceMetadata, 0, len(in))
+	for _, r := range in {
+		out = append(out, app.ResourceMetadata(r))
+	}
+	return out
+}
+
+func toK8sResources(in []app.ResourceMetadata) []k8s.ResourceMetadata {
+	out := make([]k8s.ResourceMetadata, 0, len(in))
+	for _, r := range in {
+		out = append(out, k8s.ResourceMetadata(r))
+	}
+	return out
 }
 
 func (c *Controller) notify(application *app.Application, oldStatus, oldHash string) {
