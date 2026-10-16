@@ -158,6 +158,7 @@ func TestRequiredScope(t *testing.T) {
 		{http.MethodHead, "/api/v1/applications", ScopeRead},
 		{http.MethodPost, "/api/v1/clusters/c/check", ScopeSync},
 		{http.MethodPost, "/api/v1/applications/a/approve", ScopeSync},
+		{http.MethodPost, "/api/v1/applications/a/plan", ScopeSync},
 		{http.MethodPost, "/api/v1/applications", ScopeAdmin},
 		{http.MethodDelete, "/api/v1/clusters/c", ScopeAdmin},
 	}

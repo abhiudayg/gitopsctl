@@ -62,7 +62,7 @@ func requiredScope(method, path string) Scope {
 	switch {
 	case method == http.MethodGet || method == http.MethodHead:
 		return ScopeRead
-	case method == http.MethodPost && (strings.HasSuffix(path, "/sync") || strings.HasSuffix(path, "/approve") || strings.HasSuffix(path, "/check")):
+	case method == http.MethodPost && (strings.HasSuffix(path, "/sync") || strings.HasSuffix(path, "/approve") || strings.HasSuffix(path, "/check") || strings.HasSuffix(path, "/plan")):
 		return ScopeSync
 	default:
 		return ScopeAdmin

@@ -83,3 +83,20 @@ func ConvertToResponse(app *appcore.Application) Response {
 		ApprovedGitHash:     app.ApprovedGitHash,
 	}
 }
+
+// PlanItemResponse describes one resource in a plan.
+type PlanItemResponse struct {
+	Action    string `json:"action"`
+	Group     string `json:"group"`
+	Version   string `json:"version"`
+	Kind      string `json:"kind"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+// PlanResponse is returned by the plan endpoint.
+type PlanResponse struct {
+	App    string             `json:"app"`
+	Commit string             `json:"commit"`
+	Items  []PlanItemResponse `json:"items"`
+}
