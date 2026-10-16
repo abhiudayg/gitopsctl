@@ -52,7 +52,7 @@ func (c *K8sCluster) Apply(ctx context.Context, req ApplyRequest) ([]k8s.Resourc
 	}
 	enforced := cs.WithPolicy(c.policy, policy.Scope{Namespaces: []string{req.Namespace}})
 	appName := "session-" + req.Session
-	applied, errs := enforced.ApplyManifests(ctx, req.ManifestsDir, appName, req.Session)
+	applied, errs := enforced.ApplyManifests(ctx, req.ManifestsDir, appName, req.Cluster)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("apply: %w", errors.Join(errs...))
 	}

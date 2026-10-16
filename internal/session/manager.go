@@ -54,6 +54,7 @@ type Session struct {
 }
 
 type ApplyRequest struct {
+	Cluster      string
 	Namespace    string
 	Session      string
 	ManifestsDir string
@@ -234,7 +235,7 @@ func (m *Manager) Deploy(ctx context.Context, id, agentID string, req DeployRequ
 		return Session{}, err
 	}
 
-	applied, err := cluster.Apply(ctx, ApplyRequest{Namespace: s.Namespace, Session: id, ManifestsDir: manifestsDir, Previous: s.Resources})
+	applied, err := cluster.Apply(ctx, ApplyRequest{Cluster: s.Cluster, Namespace: s.Namespace, Session: id, ManifestsDir: manifestsDir, Previous: s.Resources})
 	if err != nil {
 		return Session{}, err
 	}
