@@ -48,7 +48,7 @@ func updateModel(t *testing.T, m Model, msg tea.Msg) Model {
 }
 
 func TestNewModelAndInit(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	if !m.loading {
 		t.Fatal("expected model to start loading")
 	}
@@ -65,7 +65,7 @@ func TestNewModelAndInit(t *testing.T) {
 }
 
 func TestModelFetchCommands(t *testing.T) {
-	m := NewModel("http://gitopsctl.test")
+	m := NewModel("http://gitopsctl.test", "")
 	m.client = clientWithTransport(func(r *http.Request) (*http.Response, error) {
 		switch r.URL.Path {
 		case "/api/v1/applications":
@@ -101,7 +101,7 @@ func TestModelFetchCommands(t *testing.T) {
 }
 
 func TestModelUpdateLoadsDataAndClampsCursors(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.appCursor = 5
 	m.clusterCursor = 5
 
@@ -117,7 +117,7 @@ func TestModelUpdateLoadsDataAndClampsCursors(t *testing.T) {
 }
 
 func TestModelUpdateErrorAndExpiredStatus(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.statusMsg = "done"
 	m.statusUntil = time.Now().Add(-time.Second)
 
@@ -128,7 +128,7 @@ func TestModelUpdateErrorAndExpiredStatus(t *testing.T) {
 }
 
 func TestModelKeyboardNavigationAndRefresh(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.apps = []AppResponse{sampleApp("a"), sampleApp("b")}
 	m.clusters = []ClusterResponse{sampleCluster("c1"), sampleCluster("c2")}
 
@@ -182,7 +182,7 @@ func TestModelConfirmationActions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			seen = nil
-			m := NewModel("http://gitopsctl.test")
+			m := NewModel("http://gitopsctl.test", "")
 			m.client = client
 			m.apps = []AppResponse{sampleApp("frontend")}
 			m.clusters = []ClusterResponse{sampleCluster("prod")}
@@ -204,7 +204,7 @@ func TestModelConfirmationActions(t *testing.T) {
 }
 
 func TestModelConfirmationCancelAndQuit(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.confirmMsg = "Really?"
 	m.confirmAction = func() { t.Fatal("confirm action should not run") }
 
@@ -226,7 +226,7 @@ func TestModelConfirmationCancelAndQuit(t *testing.T) {
 }
 
 func TestModelWindowSizeAndView(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	if view := m.View(); view != "" {
 		t.Fatalf("expected empty view before sizing, got %q", view)
 	}
@@ -254,7 +254,7 @@ func TestModelWindowSizeAndView(t *testing.T) {
 }
 
 func TestRenderHelpers(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	if got := m.renderAppList(40, 10); !strings.Contains(got, "No applications") {
 		t.Fatalf("unexpected empty app list %q", got)
 	}
@@ -296,7 +296,7 @@ func TestRenderHelpers(t *testing.T) {
 	}
 }
 func TestModelFiltering(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.apps = []AppResponse{sampleApp("frontend"), sampleApp("backend"), sampleApp("api")}
 	m.clusters = []ClusterResponse{sampleCluster("prod"), sampleCluster("staging")}
 
@@ -338,7 +338,7 @@ func TestModelFiltering(t *testing.T) {
 }
 
 func TestModelReconnection(t *testing.T) {
-	m := NewModel("http://example.test")
+	m := NewModel("http://example.test", "")
 	m.width = 100
 	m.height = 30
 

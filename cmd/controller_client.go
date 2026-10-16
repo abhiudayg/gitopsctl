@@ -24,6 +24,9 @@ func postAccepted(path string, payload any) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+	}
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

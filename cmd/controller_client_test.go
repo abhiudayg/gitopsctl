@@ -7,6 +7,28 @@ import (
 	"testing"
 )
 
+func TestPostAccepted_SendsBearerTokenWhenConfigured(t *testing.T) {
+	origURL, origToken := apiBaseURL, apiToken
+	t.Cleanup(func() { apiBaseURL, apiToken = origURL, origToken })
+
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+	apiBaseURL = srv.URL
+
+	apiToken = ""
+	if _, err := postAccepted("/x", nil); err != nil || got != "" {
+		t.Fatalf("expected no auth header, got %q (%v)", got, err)
+	}
+	apiToken = "secret"
+	if _, err := postAccepted("/x", nil); err != nil || got != "Bearer secret" {
+		t.Fatalf("expected bearer header, got %q (%v)", got, err)
+	}
+}
+
 func TestPostAccepted(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func response(status int, body string) *http.Response {
 }
 
 func clientWithTransport(fn roundTripFunc) *apiClient {
-	client := newAPIClient("http://gitopsctl.test")
+	client := newAPIClient("http://gitopsctl.test", "")
 	client.client.Transport = fn
 	client.sseClient.Transport = fn
 	return client
@@ -266,3 +267,30 @@ func (r *httptestResponseRecorder) WriteHeader(statusCode int) {
 }
 
 func (r *httptestResponseRecorder) Flush() {}
+
+func TestAPIClientSendsBearerToken(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+
+	for _, token := range []string{"", "tok"} {
+		got = nil
+		client := newAPIClient(srv.URL, token)
+		if _, err := client.getApplications(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.sseClient.Get(srv.URL); err != nil {
+			t.Fatal(err)
+		}
+		want := ""
+		if token != "" {
+			want = "Bearer " + token
+		}
+		if len(got) != 2 || got[0] != want || got[1] != want {
+			t.Fatalf("token %q: got headers %v, want %q", token, got, want)
+		}
+	}
+}

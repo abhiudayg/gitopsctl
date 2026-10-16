@@ -41,11 +41,26 @@ type apiClient struct {
 	sseClient *http.Client
 }
 
-func newAPIClient(baseURL string) *apiClient {
+type bearerTransport struct {
+	token string
+	base  http.RoundTripper
+}
+
+func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+t.token)
+	return t.base.RoundTrip(req)
+}
+
+func newAPIClient(baseURL, token string) *apiClient {
+	var transport http.RoundTripper
+	if token != "" {
+		transport = bearerTransport{token: token, base: http.DefaultTransport}
+	}
 	return &apiClient{
 		baseURL:   baseURL,
-		client:    &http.Client{Timeout: 10 * time.Second},
-		sseClient: &http.Client{},
+		client:    &http.Client{Timeout: 10 * time.Second, Transport: transport},
+		sseClient: &http.Client{Transport: transport},
 	}
 }
 
