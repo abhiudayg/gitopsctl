@@ -22,6 +22,13 @@ func (h *Handler) Approve(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "commitHash is required")
 	}
 
+	h.apps.RLock()
+	_, exists := h.apps.Get(name)
+	h.apps.RUnlock()
+	if !exists {
+		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+	}
+
 	h.logger.Info("Approving sync for application", zap.String("app", name), zap.String("commit", req.CommitHash))
 	h.controller.ApproveSync(name, req.CommitHash)
 
