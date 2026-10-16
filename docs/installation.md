@@ -73,6 +73,7 @@ docker run --rm -it \
   -v "$HOME/.kube/config:/root/.kube/config:ro" \
   -v "$PWD/configs:/app/configs" \
   -p 8080:8080 \
+  -e GITOPSCTL_API_TOKEN \
   ghcr.io/aeswibon/gitopsctl:latest \
   start --api-address 0.0.0.0:8080
 ```

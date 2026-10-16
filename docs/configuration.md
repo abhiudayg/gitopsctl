@@ -150,6 +150,9 @@ gitopsctl start \
 |------|---------|---------|-------------|
 | `--api-url` | global | `http://127.0.0.1:8080` | Base URL used by API-backed commands and dashboard. |
 | `--api-address`, `-a` | `start` | `:8080` | Listen address for REST API, SSE, and metrics. |
+| `--api-token` | global | `$GITOPSCTL_API_TOKEN` | Bearer token. With `start` it is accepted as an admin token; with other commands it is sent to the API. |
+| `--api-token-file` | `start` | empty | File with one `<scope> <token>` per line (`read`, `sync`, `admin`). |
+| `--api-cors-origin` | `start` | none | Browser origin allowed to call the API (repeatable). CORS is disabled by default. |
 | `--events-file` | global/start | empty | Append integration events as JSON lines. |
 | `--events-webhook` | global/start | empty | POST integration events to an HTTP endpoint. |
 | `--events-webhook-bearer` | global/start | empty | Bearer token for event webhook requests. |
