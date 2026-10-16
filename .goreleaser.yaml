@@ -31,6 +31,23 @@ archives:
         formats:
           - zip
 
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --yes
+      - --bundle=${signature}
+      - ${artifact}
+    output: true
+
 changelog:
   sort: asc
   filters:
@@ -44,6 +61,15 @@ dockers_v2:
     tags:
       - "{{ .Tag }}"
       - "latest"
+
+docker_signs:
+  - cmd: cosign
+    artifacts: manifests
+    args:
+      - sign
+      - --yes
+      - ${artifact}@${digest}
+    output: true
 
 homebrew_casks:
   - name: gitopsctl
