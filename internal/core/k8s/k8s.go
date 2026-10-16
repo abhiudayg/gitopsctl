@@ -11,6 +11,7 @@ import (
 
 	"aeswibon.com/github/gitopsctl/internal/core/sops"
 	"aeswibon.com/github/gitopsctl/internal/metrics"
+	"aeswibon.com/github/gitopsctl/internal/policy"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -71,6 +72,8 @@ type ClientSet struct {
 	config *rest.Config
 	// allowedNamespaces is a list of namespaces this client is allowed to interact with.
 	allowedNamespaces []string
+	policy            *policy.Policy
+	policyScope       policy.Scope
 }
 
 // NewClientSet initializes a Kubernetes client set.
@@ -134,6 +137,9 @@ type manifestDoc struct {
 // Otherwise, it processes all YAML files in the specified directory.
 func (cs *ClientSet) ApplyManifests(ctx context.Context, manifestsDir string, appName, clusterName string) ([]ResourceMetadata, []error) {
 	docs, applyErrors := cs.renderManifests(manifestsDir)
+	if violations := cs.checkPolicy(docs); len(violations) > 0 {
+		return nil, append(applyErrors, violations...)
+	}
 	var appliedResources []ResourceMetadata
 	for _, doc := range docs {
 		resources, errs := cs.applyYAMLData(ctx, doc.data, doc.source, appName, clusterName)
@@ -320,7 +326,7 @@ func (cs *ClientSet) processYAMLData(ctx context.Context, data []byte, sourceNam
 		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
 			ns := unstructuredObj.GetNamespace()
 			if ns == "" {
-				ns = "default"
+				ns = cs.defaultNamespace()
 				unstructuredObj.SetNamespace(ns)
 				cs.logger.Debug("Namespace not specified for namespaced resource, defaulting to 'default'",
 					zap.String("kind", gvk.Kind),
