@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
 )
 
 func TestRegister_ClusterNotFound(t *testing.T) {

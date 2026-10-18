@@ -3,7 +3,7 @@ package cluster
 import (
 	"time"
 
-	clustercore "aeswibon.com/github/gitopsctl/internal/core/cluster"
+	clustercore "abhiudayg.com/github/gitopsctl/internal/core/cluster"
 )
 
 // RegisterRequest defines the payload for registering a new cluster.

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/core/cluster"
-	gitcore "aeswibon.com/github/gitopsctl/internal/core/git"
-	"aeswibon.com/github/gitopsctl/internal/core/k8s"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/core/cluster"
+	gitcore "abhiudayg.com/github/gitopsctl/internal/core/git"
+	"abhiudayg.com/github/gitopsctl/internal/core/k8s"
 	"go.uber.org/zap"
 )
 

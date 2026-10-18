@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
 	"github.com/labstack/echo/v4"
 )
 

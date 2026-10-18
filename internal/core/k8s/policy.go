@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"aeswibon.com/github/gitopsctl/internal/policy"
+	"abhiudayg.com/github/gitopsctl/internal/policy"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"

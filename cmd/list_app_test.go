@@ -3,8 +3,8 @@ package cmd
 import (
 	"testing"
 
-	"aeswibon.com/github/gitopsctl/internal/core/app"
-	"aeswibon.com/github/gitopsctl/internal/utils"
+	"abhiudayg.com/github/gitopsctl/internal/core/app"
+	"abhiudayg.com/github/gitopsctl/internal/utils"
 )
 
 func TestHandleEmptyAppsForList(t *testing.T) {

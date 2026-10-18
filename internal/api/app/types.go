@@ -1,7 +1,7 @@
 package app
 
 import (
-	appcore "aeswibon.com/github/gitopsctl/internal/core/app"
+	appcore "abhiudayg.com/github/gitopsctl/internal/core/app"
 )
 
 // RegisterRequest represents the request payload for registering an application.

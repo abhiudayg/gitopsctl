@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	apiapp "aeswibon.com/github/gitopsctl/internal/api/app"
+	apiapp "abhiudayg.com/github/gitopsctl/internal/api/app"
 	"github.com/spf13/cobra"
 )
 

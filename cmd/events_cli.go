@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"aeswibon.com/github/gitopsctl/internal/events"
+	"abhiudayg.com/github/gitopsctl/internal/events"
 	"go.uber.org/zap"
 )
 

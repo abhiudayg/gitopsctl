@@ -1,4 +1,4 @@
-module aeswibon.com/github/gitopsctl
+module abhiudayg.com/github/gitopsctl
 
 go 1.27.2
 
