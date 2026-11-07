@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/google/uuid v1.6.0
-	github.com/labstack/echo/v4 v4.16.0
+	github.com/labstack/echo/v4 v4.16.3
 	github.com/prometheus/client_golang v1.25.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/zap v1.28.0
